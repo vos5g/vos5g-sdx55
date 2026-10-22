@@ -72,7 +72,7 @@ mkdir -p $VC/bin $VC/etc $VC/stub $VC/web $VC/log $VC/state $VC/backup $VC/qm/bi
 cp -r $N/bin/. $VC/bin/; cp -r $N/stub/. $VC/stub/; cp -r $N/web/. $VC/web/
 cp $N/etc/sshd_config $N/etc/lighttpd-ui.conf $VC/etc/
 if [ -f $VC/etc/vosclean.conf ]; then echo "  kept your existing etc/vosclean.conf"; else cp $N/etc/vosclean.conf $VC/etc/; fi
-chmod 755 $VC $VC/bin/vosclean $VC/bin/boot.sh $VC/bin/uninstall.sh $VC/stub/fotaclient $VC/web/cgi-bin/api.sh $VC/roothome
+chmod 755 $VC $VC/bin/vosclean $VC/bin/boot.sh $VC/bin/uninstall.sh $VC/bin/diag.sh $VC/stub/fotaclient $VC/web/cgi-bin/api.sh $VC/roothome
 chmod 700 $VC/roothome/.ssh
 rm -rf $N
 echo "  OK"

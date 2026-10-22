@@ -31,6 +31,7 @@ vosclean/               the on-device payload (copied to /data/vosclean)
   bin/boot.sh             boot entry, started from /oem/script/oem_init_post.sh
   bin/dns.sh              custom upstream DNS (iptables DNAT of dnsmasq's queries)
   bin/uninstall.sh        removes the hook and undoes all live changes
+  bin/diag.sh             optional reset diagnostics (enabled by /data/vosclean/DIAG)
   etc/vosclean.conf       settings (each feature can be switched off)
   stub/fotaclient         replaces the vendor update client at runtime
   web/                    minimal fallback web UI (disabled by default)

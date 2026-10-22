@@ -66,7 +66,12 @@ The test unit occasionally rebooted by itself (about 3 times in 3 hours during d
 * **A baseband crash restarts the whole device.** On this firmware, the modem and IPA subsystems are set to `restart_level=SYSTEM`, and the kernel reboots 5 s after a panic or oops (`kernel.panic=5`, `panic_on_oops=1`). pstore is disabled, so no reason survives the reboot.
 * **The cause is not traced to vosclean or QManager.**
 
-To find out more, run `echo RELATED > /sys/bus/msm_subsys/devices/subsys*/restart_level` for the modem subsystem; it isn't persistent and is reset on reboot. A baseband crash then restarts only the modem, Linux stays up, and `dmesg` / `crash_count` show it. Expect a data drop of about 30 s instead of a reboot.
+**Diagnostics mode** (`touch /data/vosclean/DIAG`, then reboot; `rm` the file to turn it off) starts `bin/diag.sh` early in each boot. It:
+* sets the modem subsystem to `restart_level=RELATED`, so a baseband crash restarts only the modem (about 30 s without data) and shows up in `crash_count` and the kernel log, instead of rebooting the device;
+* writes the PMIC power-on / reset-reason registers for each boot to `log/diag/pon-<boot>.txt`;
+* copies the kernel log (`/dev/kmsg`) and the error lines from `/var/log/messages` to `log/diag/`, syncing every 3 s, so the last messages before a reset survive.
+
+If the device still resets with diagnostics on, and the kernel log just stops with no panic, suspect power. Many router USB ports can't supply the current the stick draws under 5G load; try a powered USB 3 hub.
 
 Evidence collected on every boot:
 

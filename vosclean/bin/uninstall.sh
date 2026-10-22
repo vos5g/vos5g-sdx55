@@ -3,7 +3,9 @@
 VC=/data/vosclean
 rm -f $VC/ENABLED
 sed -i '/vosclean/d' /oem/script/oem_init_post.sh
-systemctl stop vosclean-boot vosclean-ui qmanager 2>/dev/null
+systemctl stop vosclean-boot vosclean-diag vosclean-ui qmanager 2>/dev/null
+rm -f $VC/DIAG
+for d in /sys/bus/msm_subsys/devices/*; do echo SYSTEM > $d/restart_level 2>/dev/null; done
 $VC/bin/vosclean stop-fw
 iptables -t nat -D OUTPUT -j VOS_DNS 2>/dev/null; iptables -t nat -F VOS_DNS 2>/dev/null; iptables -t nat -X VOS_DNS 2>/dev/null
 [ -s /var/run/data/dnsmasq.pid ] && kill -HUP $(cat /var/run/data/dnsmasq.pid) 2>/dev/null

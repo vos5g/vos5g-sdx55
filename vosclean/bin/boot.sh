@@ -8,6 +8,7 @@ HB=$VC/log/heartbeat.log
 [ -s $HB ] && echo "$(date -u '+%F %T') previous boot's last heartbeat: $(tail -1 $HB)" >> $VC/log/vosclean.log
 echo "$(date -u '+%F %T') boot (uptime $(cut -d' ' -f1 /proc/uptime))" >> $VC/log/vosclean.log
 echo "--- boot $(cat /proc/sys/kernel/random/boot_id)" >> $HB
+[ -f $VC/DIAG ] && [ -x $VC/bin/diag.sh ] && systemd-run --unit=vosclean-diag $VC/bin/diag.sh >/dev/null 2>&1
 sleep 20   # let QCMAP/IPACM finish their own iptables setup first
 $VC/bin/vosclean apply
 # light watchdog + heartbeat (persistent, so a reboot leaves evidence)
