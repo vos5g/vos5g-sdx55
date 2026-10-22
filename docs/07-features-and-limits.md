@@ -50,6 +50,12 @@ The VPN → Tailscale page installs and manages Tailscale on the stick itself. Y
 
 **Tiny leaves out:** Tailscale SSH (use the stick's normal sshd over the tailnet), Taildrop, Serve/Funnel, MagicDNS handling, iptables management and log upload. It keeps routing, NAT traversal, port mapping, exit node and subnet advertising, health reporting and the CLI. Community "tiny" builds for GL.iNet routers also exist (for example admonstrator/glinet-tailscale-updater). Those are UPX-compressed third-party binaries without published checksums, so they're not used here.
 
+## NetBird
+
+The VPN → NetBird page installs NetBird's official ARM build (`linux_armv6`, about 15 MB download, 40 MB on `/data`). It verifies the release checksum and runs the daemon as the `netbird` unit, with its state in `/data/vosclean/netbird/state`. **Connecting needs a setup key**, created in the NetBird dashboard; browser login can't be completed from the modem. NetBird's DNS management is turned off, because it would rewrite the stick's own resolver. The daemon uses about 20–26 MB of RAM.
+
+**Only one of Tailscale and NetBird can be installed.** Both use 100.64.0.0/10, so the pages and the backend refuse to install the second one. Start on boot works like Tailscale's (`ENABLED_ON_BOOT`, started by `vosclean apply`). The watch loop also adds NAT and MSS clamping on `wt0`, so devices behind the stick can reach NetBird routes.
+
 ## Cell scanner (neighbour cells)
 
 * **There is no Quectel-style `AT+QSCAN`, which would sweep all bands for all operators.** The scan shows what the modem is already measuring: the **serving cell plus LTE intra- and inter-frequency neighbours of your own carrier**. It reads them over QMI NAS (*Get Cell Location Info*, message 0x0043).
