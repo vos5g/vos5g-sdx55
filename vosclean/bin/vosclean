@@ -170,6 +170,16 @@ do_qm() {
     && log "QManager started (http ${QM_PORT:-8080}, https ${QM_TLS_PORT:-8443})"
 }
 
+do_ts() { # Tailscale (installed from QManager's VPN page) - start on boot if enabled there
+  T=$VC/tailscale
+  [ -f $T/ENABLED_ON_BOOT ] && [ -x $T/bin/tailscaled ] || return 0
+  systemctl is-active --quiet tailscaled && return 0
+  mkdir -p $T/state /var/run/tailscale; systemctl reset-failed tailscaled 2>/dev/null
+  systemd-run --unit=tailscaled -p Restart=on-failure -p RestartSec=10 -p MemoryMax=90M --setenv=GOGC=50 --setenv=HOME=$T \
+    $T/bin/tailscaled --state=$T/state/tailscaled.state --statedir=$T/state --socket=/var/run/tailscale/tailscaled.sock \
+    --port=41641 --no-logs-no-support >/dev/null 2>&1 && log "tailscaled started"
+}
+
 qm_pass() { # QManager login password (stored as sha256(salt+password), QManager's own scheme)
   printf "New QManager password: "; stty -echo 2>/dev/null; read -r p1; stty echo 2>/dev/null; echo
   printf "Repeat: "; stty -echo 2>/dev/null; read -r p2; stty echo 2>/dev/null; echo
@@ -192,13 +202,14 @@ status() {
   echo "QManager: $(systemctl is-active qmanager 2>/dev/null) ($([ -s $VC/qm/etc/auth.json ] && echo password set || echo 'DEFAULT PASSWORD admin - run vosclean qmpass')) (ports ${QM_PORT:-8080}/${QM_TLS_PORT:-8443}, watchdog ${QM_WATCHDOG:-0})"
   echo "clock: $(date -u '+%F %T') UTC"
   echo "firewall v4: $(iptables -C INPUT -j VOSCLEAN_IN 2>/dev/null && echo on || echo off), v6: $(ip6tables -C INPUT -j VOSCLEAN_IN 2>/dev/null && echo on || echo off)"
+  echo "tailscale: $(systemctl is-active tailscaled 2>/dev/null) ($([ -x $VC/tailscale/bin/tailscale ] && echo installed || echo not installed), boot $([ -f $VC/tailscale/ENABLED_ON_BOOT ] && echo on || echo off))"
   echo "custom DNS: $(iptables -t nat -C OUTPUT -j VOS_DNS 2>/dev/null && echo "on ($(. $VC/etc/dns.conf; echo $DNS_SERVERS))" || echo "off (operator DNS)")"
 }
 
 [ -f $VC/bin/dns.sh ] && . $VC/bin/dns.sh
 
 case "$1" in
-  apply)   do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns ;;
+  apply)   do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns; do_ts ;;
   uipass)  ui_pass ;;
   ui)      do_ui ;;
   qm)      do_time; do_qm ;;
