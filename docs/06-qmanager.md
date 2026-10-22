@@ -45,6 +45,7 @@
 * **Cellular Information page:** fills in Cell ID, TAC, eNB/sector, NR bandwidth, total bandwidth and carrier details, and IPv4 DNS.
 * **The Cell Scanner endpoint returns the shape the page expects,** including PLMN → operator names.
 * **Custom DNS is applied for real.** Upstream only saved it to a file; the patch calls `vosclean dns` (see 07).
+* **Tailscale works for real.** Upstream's VPN → Tailscale endpoint is a stub that does nothing. See 07 for how install and connect work here.
 * **Audit log.** Every non-GET request is logged to `/data/vosclean/log/qm-requests.log` (method, path and client, never request bodies). If a reboot is ever triggered from the UI, it shows up there.
 
 ## Feature matrix on this module
@@ -59,6 +60,7 @@
 | SMS inbox / send / delete | ✅ (sending on 5G SA: see 07) |
 | Cell scanner | ✅ Your carrier only. LTE neighbours; NR shows the serving cell only |
 | Custom DNS (IPv4) | ✅ Applied through dnsmasq upstream DNAT |
+| Tailscale (Official and Tiny) | ✅ Install, log in, connect/disconnect, start on boot, exit node, uninstall |
 | AT terminal | ✅ With the dangerous commands blocked |
 | Radio off/on, reboot | ✅ |
 | SIM slot switching / dual SIM | ❌ One physical SIM slot on the VOS board |

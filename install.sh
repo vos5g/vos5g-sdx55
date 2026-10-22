@@ -14,19 +14,22 @@
 #   --pubkey FILE    SSH public key to authorise for root (strongly recommended)
 #   --qmanager FILE  qmanager-core ARMv7 binary (see qmanager/build.sh)
 #   --qcmd FILE      qcmd ARMv7 binary (see qcmd/build.sh)
+#   --tailscale-tiny FILE  Tailscale Tiny binary (see tools/build-tailscale-tiny.sh);
+#                    then install it from QManager -> VPN -> Tailscale -> Tiny
 #   --check          only run the compatibility checks, change nothing
 #
 # See docs/05-install.md before running this for the first time.
 set -euo pipefail
 
 HOST=192.168.225.1
-PUBKEY="" QM="" QCMD="" CHECK_ONLY=0
+PUBKEY="" QM="" QCMD="" TSTINY="" CHECK_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) HOST=$2; shift 2 ;;
     --pubkey) PUBKEY=$2; shift 2 ;;
     --qmanager) QM=$2; shift 2 ;;
     --qcmd) QCMD=$2; shift 2 ;;
+    --tailscale-tiny) TSTINY=$2; shift 2 ;;
     --check) CHECK_ONLY=1; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -43,6 +46,8 @@ if [ -n "$QM$QCMD" ]; then
   [ -n "$QM" ] && [ -n "$QCMD" ] || die "--qmanager and --qcmd must be given together"
   [ -s "$QM" ] && [ -s "$QCMD" ] || die "binary not found"
 fi
+
+[ -z "$TSTINY" ] || [ -s "$TSTINY" ] || die "Tailscale Tiny binary $TSTINY not found"
 
 # one SSH connection for the whole run, so the password (if any) is asked once
 CTL_DIR=$(mktemp -d); trap 'ssh -o ControlPath="$CTL_DIR/c" -O exit root@"$HOST" >/dev/null 2>&1 || true; rm -rf "$CTL_DIR"' EXIT
@@ -90,6 +95,12 @@ if [ -n "$QM" ]; then
     "${SSH[@]}" "B=/data/vosclean/qm/bin; cat > \$B/$name.new && [ \"\$(sha256sum \$B/$name.new | cut -d' ' -f1)\" = $want ] && chmod 755 \$B/$name.new && mv \$B/$name.new \$B/$name && echo '  $name ${want:0:8} OK' || { rm -f \$B/$name.new; echo '  $name: checksum mismatch, not installed'; exit 1; }" < "$file"
   done
   "${SSH[@]}" 'systemctl stop qmanager 2>/dev/null; true'
+fi
+
+if [ -n "$TSTINY" ]; then
+  echo "== Uploading Tailscale Tiny (install it from QManager -> VPN -> Tailscale -> Tiny)"
+  want=$(sha "$TSTINY")
+  "${SSH[@]}" "F=/data/vosclean/qm/tailscale-tiny; mkdir -p /data/vosclean/qm; cat > \$F.new && [ \"\$(sha256sum \$F.new | cut -d' ' -f1)\" = $want ] && chmod 755 \$F.new && mv \$F.new \$F && echo '  uploaded ${want:0:8}' || { rm -f \$F.new; echo '  checksum mismatch, not uploaded'; exit 1; }" < "$TSTINY"
 fi
 
 echo "== Installing the boot hook"

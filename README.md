@@ -3,7 +3,7 @@
 This is a reference and step-by-step guide for owners of the **Tri Cascade VOS 5G USB dongle**. It also covers the bare **TRITOM / Tri Cascade SG500M2-X** M.2 module inside it, which is Compal's **RXM-G1** on a Qualcomm SDX55 / X55. It records what was found in the stock firmware and how to back the device up properly. It also gives you a reversible package that:
 
 * **hardens the device:** key-only root SSH, a WWAN-side firewall, the vendor's remote-update client blocked, RPC/NFS off, and stable SSH host keys;
-* **installs [QManager-GO](https://github.com/evairo176/qmanager)** as the web UI, ported from Quectel to this Compal module through a small translator (`qcmd`). You get signal and carrier aggregation, band, cell and 5G-ARFCN locks, the APN, SMS, a neighbour-cell scan, custom DNS, an AT terminal and more;
+* **installs [QManager-GO](https://github.com/evairo176/qmanager)** as the web UI, ported from Quectel to this Compal module through a small translator (`qcmd`). You get signal and carrier aggregation, band, cell and 5G-ARFCN locks, the APN, SMS, a neighbour-cell scan, custom DNS, Tailscale, an AT terminal and more;
 * **leaves the read-only system partition untouched.** Everything lives in `/data/vosclean`, starts from one line in a vendor boot script, and is removed with one command.
 
 > **Status:** these tools were tested on one unit, firmware `RXMG1.20.00.326.73_0R19` (v73), customer ID 19 (VOS Dongle), on O2 UK. Other carriers and firmware versions should work but haven't been tested. Read [docs/03-backup.md](docs/03-backup.md) and make your backups **before** you install anything.
@@ -37,7 +37,7 @@ vosclean/               the on-device payload (copied to /data/vosclean)
   web/                    minimal fallback web UI (disabled by default)
 qcmd/                   Go: Quectel-AT -> Compal (cricli / atcli / QMI) translator
 qmanager/               vosclean.patch + build.sh against a pinned upstream commit
-tools/                  backup-ubi.sh (per-volume backups), vos_readonly_probe.sh
+tools/                  backup-ubi.sh (per-volume backups), build-tailscale-tiny.sh, vos_readonly_probe.sh
 ```
 
 ## Quick start

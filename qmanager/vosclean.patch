@@ -729,10 +729,10 @@ index 00000000..b023190d
 +}
 diff --git a/backend/pkg/api/zz_vosclean_tailscale.go b/backend/pkg/api/zz_vosclean_tailscale.go
 new file mode 100644
-index 00000000..8459c348
+index 00000000..58e0650b
 --- /dev/null
 +++ b/backend/pkg/api/zz_vosclean_tailscale.go
-@@ -0,0 +1,519 @@
+@@ -0,0 +1,587 @@
 +package api
 +
 +// vosclean: real Tailscale management for the Compal RXM-G1 / VOS 5G.
@@ -774,6 +774,10 @@ index 00000000..8459c348
 +	tsPkgIndex   = "https://pkgs.tailscale.com/stable/?mode=json"
 +	tsPkgBase    = "https://pkgs.tailscale.com/stable/"
 +	tsNeedFreeKB = 60 * 1024 // unpacked size is about 70 MB; UBIFS compresses it
++	// Tiny: a single combined binary (tailscaled with the CLI built in) compiled
++	// from Tailscale's own source with unneeded features left out
++	// (tools/build-tailscale-tiny.sh). install.sh --tailscale-tiny uploads it here.
++	tsTinyUpload = "/data/vosclean/qm/tailscale-tiny"
 +)
 +
 +type tsInstallState struct {
@@ -885,11 +889,20 @@ index 00000000..8459c348
 +func tsStatus() map[string]any {
 +	out := map[string]any{"success": true, "installed": false}
 +	if !tsInstalled() {
-+		out["install_hint"] = "Installs the official static ARM build from pkgs.tailscale.com into /data (about 40 MB used)."
++		hint := "Official: downloads Tailscale's static ARM build from pkgs.tailscale.com (about 47 MB on /data)."
++		if _, err := os.Stat(tsTinyUpload); err == nil {
++			hint += " Tiny: a 15 MB single-binary build uploaded with install.sh is ready to install."
++		} else {
++			hint += " Tiny: build it with tools/build-tailscale-tiny.sh and upload it with install.sh --tailscale-tiny."
++		}
++		out["install_hint"] = hint
 +		return out
 +	}
 +	out["installed"] = true
 +	out["install_variant"] = "official"
++	if fi, err := os.Lstat(tsCLI); err == nil && fi.Mode()&os.ModeSymlink != 0 {
++		out["install_variant"] = "tiny"
++	}
 +	_, err := os.Stat(tsBootFlag)
 +	out["enabled_on_boot"] = err == nil
 +	if v, err := tsRun(5*time.Second, "version"); err == nil {
@@ -1169,7 +1182,12 @@ index 00000000..8459c348
 +	switch body.Action {
 +	case "install":
 +		if body.Variant == "tiny" {
-+			tsInstall.set("error", "The Tiny (opkg) package is not available on this modem. Choose Official.", "")
++			tsInstall.set("running", "Installing Tailscale Tiny...", "")
++			if err := tsInstallTiny(); err != nil {
++				tsInstall.set("error", "Tailscale Tiny could not be installed", err.Error())
++			} else {
++				tsInstall.set("complete", "Tailscale Tiny installed. Press Connect to log in.", "")
++			}
 +			ok(nil)
 +			return
 +		}
@@ -1251,6 +1269,56 @@ index 00000000..8459c348
 +	default:
 +		bad("unknown_action", nil, "unknown action: "+body.Action)
 +	}
++}
++
++// tsInstallTiny installs the combined binary uploaded by install.sh: tailscaled
++// itself, plus "tailscale" as a symlink (the binary acts as the CLI when called
++// by that name). The login state in tsStateDir is kept.
++func tsInstallTiny() error {
++	fi, err := os.Stat(tsTinyUpload)
++	if err != nil {
++		return fmt.Errorf("no Tiny build uploaded: build it with tools/build-tailscale-tiny.sh, then run install.sh --tailscale-tiny dist/tailscaled-tiny-armv7")
++	}
++	if fi.Size() < 1<<20 {
++		return fmt.Errorf("%s looks truncated (%d bytes)", tsTinyUpload, fi.Size())
++	}
++	tmp := tsDir + "/bin.new"
++	_ = os.RemoveAll(tmp)
++	if err := os.MkdirAll(tmp, 0755); err != nil {
++		return err
++	}
++	in, err := os.Open(tsTinyUpload)
++	if err != nil {
++		return err
++	}
++	out, err := os.OpenFile(tmp+"/tailscaled", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0755)
++	if err != nil {
++		in.Close()
++		return err
++	}
++	_, err = io.Copy(out, in)
++	in.Close()
++	out.Close()
++	if err != nil {
++		_ = os.RemoveAll(tmp)
++		return fmt.Errorf("copy failed (disk full?): %v", err)
++	}
++	if err := os.Symlink("tailscaled", tmp+"/tailscale"); err != nil {
++		_ = os.RemoveAll(tmp)
++		return err
++	}
++	if v, err := exec.Command(tmp+"/tailscale", "version").CombinedOutput(); err != nil {
++		_ = os.RemoveAll(tmp)
++		return fmt.Errorf("the uploaded binary does not run here: %v %s", err, strings.TrimSpace(string(v)))
++	}
++	tsStopDaemon()
++	_ = os.RemoveAll(tsBinDir)
++	if err := os.Rename(tmp, tsBinDir); err != nil {
++		return err
++	}
++	_ = os.Remove(tsTinyUpload) // the installed copy is the only one kept
++	_ = os.WriteFile(tsBootFlag, []byte("1\n"), 0644)
++	return tsStartDaemon()
 +}
 diff --git a/backend/pkg/at/client.go b/backend/pkg/at/client.go
 index 449c5728..87437056 100644

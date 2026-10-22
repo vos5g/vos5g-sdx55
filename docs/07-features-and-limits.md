@@ -22,6 +22,25 @@ Limits:
 * **IPv4 only.**
 * **Some devices skip the modem's DNS altogether:** clients with a hard-coded DNS server, DNS-over-HTTPS in a browser, or iCloud Private Relay. Their queries never go through the modem's dnsmasq, and with hardware offload they are invisible to Linux.
 
+## Tailscale
+
+The VPN → Tailscale page installs and manages Tailscale on the stick itself. You can then reach QManager (`http://<tailscale-ip>:8080`) and SSH on the stick from anywhere in your tailnet. With **exit node** turned on, other devices can send their internet traffic out through the stick's 5G connection.
+
+| Variant | What it is | Space on `/data` |
+|---|---|---|
+| **Official** | QManager downloads Tailscale's static ARM tarball from pkgs.tailscale.com, checks its published SHA-256, and unpacks `tailscale` and `tailscaled` | about 47 MB |
+| **Tiny** (recommended) | One binary (`tailscaled` with the CLI built in), built from Tailscale's own source by `tools/build-tailscale-tiny.sh`, without the features the stick doesn't use. Upload it with `install.sh --tailscale-tiny dist/tailscaled-tiny-armv7`, then press Install → Tiny | about 15 MB |
+
+**What QManager does, and why:**
+* **QManager does the download itself.** The stick's busybox `wget` can't do modern TLS, so QManager handles it with Go's HTTP client.
+* **It runs `tailscaled` as a systemd unit** (memory capped at 90 MB) in **kernel TUN** mode (`tailscale0`) and with log upload turned off (`--no-logs-no-support`). Tailscale's own iptables handling is off (`--netfilter-mode=off`), because QCMAP owns iptables on this firmware. Tailscale doesn't touch the stick's DNS (`--accept-dns=false`). The device registers in your tailnet as `vos5g`.
+* **Connect shows a login link** while the device waits for approval.
+* **Login state lives in `/data/vosclean/tailscale/state`.** It survives reboots and switching between the Official and Tiny builds.
+* **On boot, vosclean starts `tailscaled`** if "start on boot" is on.
+* **Its memory use is modest:** about 17 MB on the test unit.
+
+**Tiny leaves out:** Tailscale SSH (use the stick's normal sshd over the tailnet), Taildrop, Serve/Funnel, MagicDNS handling, iptables management and log upload. It keeps routing, NAT traversal, port mapping, exit node and subnet advertising, health reporting and the CLI. Community "tiny" builds for GL.iNet routers also exist (for example admonstrator/glinet-tailscale-updater). Those are UPX-compressed third-party binaries without published checksums, so they're not used here.
+
 ## Cell scanner (neighbour cells)
 
 * **There is no Quectel-style `AT+QSCAN`, which would sweep all bands for all operators.** The scan shows what the modem is already measuring: the **serving cell plus LTE intra- and inter-frequency neighbours of your own carrier**. It reads them over QMI NAS (*Get Cell Location Info*, message 0x0043).
