@@ -729,7 +729,7 @@ index 00000000..b023190d
 +}
 diff --git a/backend/pkg/api/zz_vosclean_tailscale.go b/backend/pkg/api/zz_vosclean_tailscale.go
 new file mode 100644
-index 00000000..35231e4e
+index 00000000..cc3f58ea
 --- /dev/null
 +++ b/backend/pkg/api/zz_vosclean_tailscale.go
 @@ -0,0 +1,666 @@
@@ -828,7 +828,7 @@ index 00000000..35231e4e
 +	_ = os.MkdirAll("/var/run/tailscale", 0755)
 +	_ = exec.Command("systemctl", "reset-failed", tsUnit).Run()
 +	args := []string{"--unit=" + tsUnit, "-p", "Restart=on-failure", "-p", "RestartSec=10", "-p", "MemoryMax=90M",
-+		"--setenv=GOGC=50", "--setenv=HOME=" + tsDir,
++		"--setenv=GOGC=200", "--setenv=GOMEMLIMIT=60MiB", "--setenv=HOME=" + tsDir,
 +		tsDaemon, "--state=" + tsStateDir + "/tailscaled.state", "--statedir=" + tsStateDir,
 +		"--socket=/var/run/tailscale/tailscaled.sock", "--port=41641", "--no-logs-no-support"}
 +	if out, err := exec.Command("systemd-run", args...).CombinedOutput(); err != nil {

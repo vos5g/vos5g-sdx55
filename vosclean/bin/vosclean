@@ -175,7 +175,7 @@ do_ts() { # Tailscale (installed from QManager's VPN page) - start on boot if en
   [ -f $T/ENABLED_ON_BOOT ] && [ -x $T/bin/tailscaled ] || return 0
   systemctl is-active --quiet tailscaled && return 0
   mkdir -p $T/state /var/run/tailscale; systemctl reset-failed tailscaled 2>/dev/null
-  systemd-run --unit=tailscaled -p Restart=on-failure -p RestartSec=10 -p MemoryMax=90M --setenv=GOGC=50 --setenv=HOME=$T \
+  systemd-run --unit=tailscaled -p Restart=on-failure -p RestartSec=10 -p MemoryMax=90M --setenv=GOGC=200 --setenv=GOMEMLIMIT=60MiB --setenv=HOME=$T \
     $T/bin/tailscaled --state=$T/state/tailscaled.state --statedir=$T/state --socket=/var/run/tailscale/tailscaled.sock \
     --port=41641 --no-logs-no-support >/dev/null 2>&1 && log "tailscaled started"
   sleep 3; ts_fw
