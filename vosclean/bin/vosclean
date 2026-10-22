@@ -163,7 +163,7 @@ do_qm() {
   mkdir -p $Q/etc
   if [ ! -x $Q/bin/sms_tool ]; then printf '#!/bin/sh\nexec %s/bin/qcmd sms_tool "$@"\n' $Q > $Q/bin/sms_tool; chmod 755 $Q/bin/sms_tool; fi
   systemctl is-active --quiet qmanager && return 0
-  L=$VC/log/qmanager.log; [ -f $L ] && [ $(wc -c < $L) -gt 300000 ] && mv $L $L.1
+  mkdir -p /tmp/vosclean/log; L=/tmp/vosclean/log/qmanager.log   # RAM; tail saved to log/last-boot on shutdown
   systemd-run --unit=qmanager -p Restart=always -p RestartSec=10 -p MemoryMax=80M \
     --setenv=PATH=$Q/bin:/usr/sbin:/usr/bin:/sbin:/bin --setenv=PORT=${QM_PORT:-8080} --setenv=TLS_PORT=${QM_TLS_PORT:-8443} \
     --setenv=QM_WATCHDOG=${QM_WATCHDOG:-0} --setenv=HOME=$Q /bin/sh -c "exec $Q/bin/qmanager-core >> $L 2>&1" >/dev/null 2>&1 \
@@ -195,6 +195,65 @@ ts_fw() { # NAT + MSS clamping so devices behind the stick can use accepted Tail
   return 0
 }
 
+# --- modem crash handling ----------------------------------------------------------
+# The firmware ships restart_level=SYSTEM: any baseband crash resets the whole SoC.
+# With RELATED only the modem restarts (about 30 s without data) and Linux stays up.
+# The watch loop records each crash on flash and, if mobile data has not come back
+# within SSR_RECOVER_SECS, falls back to a clean full reboot.
+SSR_COUNT=${VOS_SSR_STATE:-/tmp}/vosclean-ssr.count
+SSR_PENDING=${VOS_SSR_STATE:-/tmp}/vosclean-ssr.pending
+SSR_LOG=${VOS_SSR_LOG:-$VC/log/modem-crashes.log}
+ssr_dev() {
+  [ -n "$VOS_SSR_DEV" ] && { echo "$VOS_SSR_DEV"; return; }   # test hook
+  for d in /sys/bus/msm_subsys/devices/*; do [ "$(cat $d/name 2>/dev/null)" = modem ] && { echo $d; return; }; done
+}
+ssr_log() { echo "$(date -u '+%F %T') $*" >> $SSR_LOG; log "$*"; }
+data_up() {
+  [ -n "$VOS_SSR_DATA" ] && { [ "$VOS_SSR_DATA" = up ]; return; }   # test hook
+  timeout -t 10 cricli wwan_status 2>/dev/null | grep -q 'IPV4: CONNECTED'
+}
+do_ssr() {
+  d=$(ssr_dev); [ -n "$d" ] || return 0
+  if [ "${SSR_RELATED:-yes}" = yes ]; then want=RELATED; else want=SYSTEM; fi
+  if [ "$(cat $d/restart_level)" != $want ]; then echo $want > $d/restart_level && log "modem restart_level=$want"; fi
+  [ -s $SSR_COUNT ] || cat $d/crash_count > $SSR_COUNT
+}
+ssr_watch() {
+  [ "${SSR_RELATED:-yes}" = yes ] || return 0
+  d=$(ssr_dev); [ -n "$d" ] || return 0
+  now=$(cut -d. -f1 /proc/uptime)
+  c=$(cat $d/crash_count 2>/dev/null); prev=$(cat $SSR_COUNT 2>/dev/null)
+  case "$c$prev" in *[!0-9]*|'') do_ssr; return 0 ;; esac
+  if [ "$c" -gt "$prev" ]; then
+    echo $c > $SSR_COUNT; echo $now > $SSR_PENDING
+    ssr_log "modem crashed (crash count $prev -> $c, state $(cat $d/state 2>/dev/null)); restarting the radio only"
+    dmesg 2>/dev/null | grep -i -E 'subsys-restart|subsystem_restart|subsys-pil|failure reason|err_fatal|\bssr\b|mss|q6v5|modem.*(crash|fail|down|up)' | tail -n 30 | sed 's/^/    /' >> $SSR_LOG
+  fi
+  [ -f $SSR_PENDING ] || return 0
+  t0=$(cat $SSR_PENDING)
+  if data_up; then
+    ssr_log "mobile data back $((now - t0)) s after the modem crash"; rm -f $SSR_PENDING
+  elif [ $((now - t0)) -ge ${SSR_RECOVER_SECS:-180} ]; then
+    rm -f $SSR_PENDING
+    if timeout -t 10 cricli op_mode 2>/dev/null | grep -q -i 'online' || [ -n "$VOS_SSR_DEV" ]; then
+      ssr_log "mobile data still down $((now - t0)) s after the modem crash: rebooting"
+      [ -n "$VOS_SSR_DEV" ] && { echo "TEST: would reboot now"; return 0; }
+      sync; reboot
+    else
+      ssr_log "mobile data down after the modem crash, but the radio is switched off: not rebooting"
+    fi
+  fi
+  [ -f $SSR_LOG ] && [ $(wc -c < $SSR_LOG) -gt 100000 ] && tail -c 50000 $SSR_LOG > $SSR_LOG.tmp && mv $SSR_LOG.tmp $SSR_LOG
+  return 0
+}
+
+ram_logs() { # cap the RAM logs (they are appended to by long-running processes)
+  for f in /tmp/vosclean/log/*.log; do
+    [ -f "$f" ] && [ $(wc -c < "$f") -gt 524288 ] && { tail -c 262144 "$f" > "$f.tmp" && cat "$f.tmp" > "$f"; rm -f "$f.tmp"; }
+  done
+  return 0
+}
+
 qm_pass() { # QManager login password (stored as sha256(salt+password), QManager's own scheme)
   printf "New QManager password: "; stty -echo 2>/dev/null; read -r p1; stty echo 2>/dev/null; echo
   printf "Repeat: "; stty -echo 2>/dev/null; read -r p2; stty echo 2>/dev/null; echo
@@ -218,22 +277,24 @@ status() {
   echo "clock: $(date -u '+%F %T') UTC"
   echo "firewall v4: $(iptables -C INPUT -j VOSCLEAN_IN 2>/dev/null && echo on || echo off), v6: $(ip6tables -C INPUT -j VOSCLEAN_IN 2>/dev/null && echo on || echo off)"
   echo "tailscale: $(systemctl is-active tailscaled 2>/dev/null) ($([ -x $VC/tailscale/bin/tailscale ] && echo installed || echo not installed), boot $([ -f $VC/tailscale/ENABLED_ON_BOOT ] && echo on || echo off))"
+  d=$(ssr_dev); [ -n "$d" ] && echo "modem crash handling: restart_level=$(cat $d/restart_level), crashes this boot: $(cat $d/crash_count)$([ -f $SSR_PENDING ] && echo ', waiting for data to return')"
   echo "custom DNS: $(iptables -t nat -C OUTPUT -j VOS_DNS 2>/dev/null && echo "on ($(. $VC/etc/dns.conf; echo $DNS_SERVERS))" || echo "off (operator DNS)")"
 }
 
 [ -f $VC/bin/dns.sh ] && . $VC/bin/dns.sh
 
 case "$1" in
-  apply)   do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns; do_ts ;;
+  apply)   do_ssr; do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns; do_ts ;;
   uipass)  ui_pass ;;
   ui)      do_ui ;;
   qm)      do_time; do_qm ;;
   qmpass)  qm_pass ;;
-  watch)   fw_watch; dns_watch; ts_fw ;;
+  watch)   fw_watch; dns_watch; ts_fw; ssr_watch; ram_logs ;;
   dns)     do_dns ;;
   tsfw)    ts_fw ;;
+  ssr)     do_ssr ;;
   status)  status ;;
   fw)      do_fw ;;
   stop-fw) stop_fw ;;
-  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw}"; exit 1 ;;
+  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw|ssr}"; exit 1 ;;
 esac

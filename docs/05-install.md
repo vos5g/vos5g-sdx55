@@ -56,6 +56,9 @@ ssh -t root@192.168.225.1 /data/vosclean/bin/vosclean qmpass     # QManager pass
 | `QM_ENABLE` | `yes` | Runs QManager (systemd transient unit `qmanager`, memory capped at 80 MB) |
 | `QM_PORT` / `QM_TLS_PORT` | `8080` / `8443` | QManager ports. The stock UI keeps 80/443 |
 | `QM_WATCHDOG` | `0` | QManager's connectivity watchdog. **Leave it at 0**: on failed pings it toggles the radio and can **reboot the modem** |
+| `SSR_RELATED` | `yes` | On a baseband crash, restart only the modem (about 30 s without data) instead of resetting the whole device. `no` restores the firmware default |
+| `SSR_RECOVER_SECS` | `180` | After a modem crash, reboot the device anyway if mobile data isn't back within this many seconds |
+| `HEARTBEAT_MINUTES` | `5` | How often the on-flash flight recorder (`log/heartbeat.log`) gets a line |
 
 After editing, run `/data/vosclean/bin/vosclean apply`.
 
@@ -70,4 +73,9 @@ vosclean fw | stop-fw
 uninstall.sh        # remove the hook and undo the live changes (files kept)
 ```
 
-Every minute, `boot.sh` re-checks the firewall jump and the DNS rules, because QCMAP can flush them. It also appends a heartbeat line (uptime, free memory, load, QManager RSS) to `log/heartbeat.log`, so an unexpected reboot leaves evidence.
+Every minute, `boot.sh` re-checks the firewall jump, the DNS and Tailscale rules (QCMAP can flush them) and the modem crash counter. Every `HEARTBEAT_MINUTES` it appends a line (uptime, free memory, load, QManager RSS, modem crashes) to `log/heartbeat.log` on flash, so an unexpected reset leaves evidence.
+
+**Logs and flash wear.** To spare the NAND, the busy logs live in RAM:
+* **QManager's output** goes to `/tmp/vosclean/log/qmanager.log`, capped at 512 KB.
+* **On a clean shutdown,** the last 300 lines of each RAM log are saved to `log/last-boot/`.
+* **What stays on flash** is the event and audit logs, all small and capped: `vosclean.log`, `heartbeat.log`, `modem-crashes.log`, `qm-requests.log` (max 2 × 256 KB) and `qcmd-writes.log` (max 2 × 200 KB). QManager's own live data (signal and ping history, status) is in `/tmp`.

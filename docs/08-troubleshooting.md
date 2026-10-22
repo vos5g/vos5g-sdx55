@@ -5,8 +5,10 @@
 | File | Contents |
 |---|---|
 | `vosclean.log` | Each apply step, firewall and DNS re-applies, the previous boot's last heartbeat |
-| `heartbeat.log` | One line a minute: uptime, available memory, load, QManager RSS, process count |
-| `qmanager.log` | QManager stdout/stderr |
+| `heartbeat.log` | One line every 5 minutes: uptime, available memory, load, QManager RSS, process count, modem crashes. `--- boot` marks each boot |
+| `modem-crashes.log` | Each baseband crash: crash count, kernel lines about it, whether data came back or the device was rebooted |
+| `last-boot/` | Tail of the RAM logs (QManager output), saved on the last clean shutdown |
+| `qmanager.log` | Old location. QManager's output is now in RAM: `/tmp/vosclean/log/qmanager.log` |
 | `qm-requests.log` | Every state-changing QManager HTTP request (no bodies) |
 | `qcmd-writes.log` | Every state-changing AT/cricli command and the process that sent it |
 
