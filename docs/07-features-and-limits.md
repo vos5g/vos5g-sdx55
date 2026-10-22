@@ -60,6 +60,8 @@ The only workaround is to turn off IPA offload and route everything through the 
 
 ## Unexplained reboots
 
+**Most likely, it's power.** On a router's USB port the test unit reset every few minutes, and it stopped completely with a separate power feed (see [09-router-use.md](09-router-use.md)). On a Mac it reset about once an hour during heavy use.
+
 The test unit occasionally rebooted by itself (about 3 times in 3 hours during development). Memory and load were normal, and no reboot command was logged by `qcmd` or QManager. Here is what is known so far:
 
 * **These are warm resets, not power loss.** After such a reboot, the clock reads "1970 + about 10 minutes" before NITZ fixes it, so the PMIC RTC kept running. After a real unplug it restarts from 0. (The stick does draw a lot of power, so still use a good port.)
