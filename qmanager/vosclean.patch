@@ -1913,7 +1913,7 @@ index 6484c98c..00000000
 @@ -1 +0,0 @@
 -# Keep folder structure for embed.FS
 diff --git a/public/locales/en/monitoring.json b/public/locales/en/monitoring.json
-index 3c6d7cba..e430495c 100644
+index 3c6d7cba..4306ca1d 100644
 --- a/public/locales/en/monitoring.json
 +++ b/public/locales/en/monitoring.json
 @@ -426,6 +426,12 @@
@@ -1923,14 +1923,14 @@ index 3c6d7cba..e430495c 100644
 +    "accept_routes_label": "Accept subnet routes",
 +    "accept_routes_description": "Reach networks other tailnet devices share (for example a NAS at home). Works for this stick and for devices connected through it.",
 +    "use_exit_node_label": "Use exit node",
-+    "use_exit_node_description": "Sends this stick's own traffic through another device. Devices connected through the stick keep using the 5G hardware path and are not affected.",
++    "use_exit_node_description": "Sends internet traffic from the stick and from devices connected through it out via another device in your tailnet. Speed is limited by the stick's CPU (WireGuard in software).",
 +    "use_exit_node_none": "No device in your tailnet offers an exit node yet. Enable \"Run as exit node\" on one and approve it in the admin console.",
 +    "use_exit_node_off": "None",
      "uninstall_button": "Uninstall",
      "uninstall_confirm_title": "Uninstall Tailscale?",
      "uninstall_confirm_description": "This will remove Tailscale from this device and disconnect all peers.",
 diff --git a/src/components/monitoring/tailscale/tailscale-connection-card.tsx b/src/components/monitoring/tailscale/tailscale-connection-card.tsx
-index c7ca75ce..bff9b0e1 100644
+index c7ca75ce..fd5b2a9b 100644
 --- a/src/components/monitoring/tailscale/tailscale-connection-card.tsx
 +++ b/src/components/monitoring/tailscale/tailscale-connection-card.tsx
 @@ -33,6 +33,13 @@ import { Label } from "@/components/ui/label";
@@ -2023,7 +2023,7 @@ index c7ca75ce..bff9b0e1 100644
 +                      )
 +                    : t(
 +                        "tailscale.use_exit_node_description",
-+                        "Sends this stick's own traffic through another device. Devices connected through the stick keep using the 5G hardware path and are not affected.",
++                        "Sends internet traffic from the stick and from devices connected through it out via another device in your tailnet. Speed is limited by the stick's CPU (WireGuard in software).",
 +                      )}
 +                </p>
 +              </div>

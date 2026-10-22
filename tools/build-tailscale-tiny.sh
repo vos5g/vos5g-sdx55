@@ -8,7 +8,7 @@
 #   then QManager -> VPN -> Tailscale -> Install -> Tiny
 #
 # Kept: kernel-TUN routing, NAT traversal, port mapping, exit node / subnet
-# advertising, health, the CLI. Left out: SSH server, Taildrop, Serve/Funnel,
+# advertising and use, health, the CLI. Left out: SSH server, Taildrop, Serve/Funnel,
 # MagicDNS/resolv.conf management, iptables management, log upload, etc.
 set -euo pipefail
 HERE=$(cd "$(dirname "$0")/.." && pwd)
@@ -17,7 +17,7 @@ VER=${1:-$(curl -fsSL "https://pkgs.tailscale.com/stable/?mode=json" | sed -n 's
 SRC=$HERE/build/tailscale-$VER
 [ -d "$SRC" ] || git clone --depth 1 --branch "v$VER" https://github.com/tailscale/tailscale.git "$SRC"
 cd "$SRC"
-FEATURES=osrouter,nattraversal,portmapper,listenrawdisco,advertiseexitnode,advertiseroutes,health,ipnbus,debug
+FEATURES=osrouter,nattraversal,portmapper,listenrawdisco,advertiseexitnode,advertiseroutes,useexitnode,useroutes,health,ipnbus,debug
 TAGS="$(GOOS= GOARCH= go run ./cmd/featuretags --min --add=$FEATURES),ts_include_cli"
 eval "$(CGO_ENABLED=0 GOOS= GOARCH= go run ./cmd/mkversion)"
 mkdir -p "$HERE/dist"
