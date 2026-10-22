@@ -81,6 +81,25 @@ The forum's band unlock edits `/policyman/carrier_policy.xml` in EFS with QPST E
 
 The only workaround is to turn off IPA offload and route everything through the 1.5 GHz Cortex-A7. That cuts 5G throughput to around 100 Mb/s or less. **If you need DPI evasion, run zapret on the host or on an OpenWrt router.**
 
+## TTL / hop limit
+
+**Not possible on the stick, for the same reason.** The kernel has the `TTL` and `HL` targets, but a test rule (`iptables -t mangle … -o rmnet_data+ -j TTL --ttl-set 65`) matched 22 packets during a 20 MB upload of about 14,000 packets. Only the first packets of each connection reach Linux; IPA forwards the rest. Rewriting just those would make TTLs inconsistent, which is easier to detect than leaving them alone. QManager's TTL card says so and applies nothing.
+
+**Set TTL on the router in front of the stick instead**, on its interface towards the stick (OpenWrt fw4: `ip ttl set 65` / `ip6 hoplimit set 65` in a postrouting chain; older iptables: `-j TTL --ttl-set 65` and `-j HL --hl-set 65`). Whether IPA itself lowers TTL can't be checked from the stick.
+
+## Live traffic and data counters
+
+`/proc/net/dev` misses almost everything for the same reason (a 40 MB download added under 1 KB to `rmnet_data0`). QCMAP keeps per-call counters that include offloaded traffic: `cricli wwan_stats` (IPv4/IPv6 TX/RX bytes, about 10 ms per call). QManager's live traffic uses these, over an authenticated WebSocket on the main port (upstream ran an open listener on port 8838; that is gone). Measured: 236–263 Mbit/s during a download.
+
+## Speed test
+
+QManager tests against real speedtest.net servers in pure Go. The test runs **on the stick**, whose single Cortex-A7 core (about 1.1 GHz under load) caps it at roughly 50–100 Mbit/s. Devices behind the stick use the IPA fast path and can be much faster (about 180–260 Mbit/s measured with plain downloads). Some servers, including O2's own, refuse HTTP uploads; QManager then measures upload over Ookla's TCP protocol.
+
+## Web console and health check
+
+* **Web console** (System Settings → Web Console): a root shell in the browser. QManager opens the PTY itself, so no ttyd is needed. It is off by default and needs a logged-in session from the same origin. It closes on logout, after 30 idle minutes, or as soon as it is switched off. At most two can be open at once, and every open, close and toggle goes to `log/qm-requests.log`.
+* **System health check**: 34 read-only checks, such as flash wear (UBI erase counts), recent flash writes, modem crash handling, hardening, the IPA fast path, DNS, Tailscale and unexpected resets. It also builds a support bundle, with IMEI, ICCID, IMSI, phone number, public IPs and e-mail addresses replaced. Cell IDs and the carrier-NAT WAN address are kept.
+
 ## LTE EARFCN-only lock, NR-DC
 
 * **LTE EARFCN-only lock: not supported.** The modem only locks LTE to an EARFCN together with a PCI (a cell lock, which works).
