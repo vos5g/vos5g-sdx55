@@ -178,6 +178,21 @@ do_ts() { # Tailscale (installed from QManager's VPN page) - start on boot if en
   systemd-run --unit=tailscaled -p Restart=on-failure -p RestartSec=10 -p MemoryMax=90M --setenv=GOGC=50 --setenv=HOME=$T \
     $T/bin/tailscaled --state=$T/state/tailscaled.state --statedir=$T/state --socket=/var/run/tailscale/tailscaled.sock \
     --port=41641 --no-logs-no-support >/dev/null 2>&1 && log "tailscaled started"
+  sleep 3; ts_fw
+}
+
+ts_fw() { # NAT + MSS clamping so devices behind the stick can use accepted Tailscale subnet routes
+  if systemctl is-active --quiet tailscaled; then
+    iptables -t nat -C POSTROUTING -o tailscale0 -j MASQUERADE 2>/dev/null || iptables -t nat -I POSTROUTING 1 -o tailscale0 -j MASQUERADE
+    for d in -o -i; do
+      iptables -t mangle -C FORWARD $d tailscale0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null ||
+        iptables -t mangle -A FORWARD $d tailscale0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
+    done
+  else
+    iptables -t nat -D POSTROUTING -o tailscale0 -j MASQUERADE 2>/dev/null
+    for d in -o -i; do iptables -t mangle -D FORWARD $d tailscale0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null; done
+  fi
+  return 0
 }
 
 qm_pass() { # QManager login password (stored as sha256(salt+password), QManager's own scheme)
@@ -214,10 +229,11 @@ case "$1" in
   ui)      do_ui ;;
   qm)      do_time; do_qm ;;
   qmpass)  qm_pass ;;
-  watch)   fw_watch; dns_watch ;;
+  watch)   fw_watch; dns_watch; ts_fw ;;
   dns)     do_dns ;;
+  tsfw)    ts_fw ;;
   status)  status ;;
   fw)      do_fw ;;
   stop-fw) stop_fw ;;
-  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns}"; exit 1 ;;
+  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw}"; exit 1 ;;
 esac

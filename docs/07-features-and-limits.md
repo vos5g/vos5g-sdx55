@@ -39,6 +39,13 @@ The VPN → Tailscale page installs and manages Tailscale on the stick itself. Y
 * **On boot, vosclean starts `tailscaled`** if "start on boot" is on.
 * **Its memory use is modest:** about 17 MB on the test unit.
 
+**Subnet routes and exit nodes** (switches on the same page):
+* **Accept subnet routes** lets the stick use networks that other tailnet devices share, for example a router advertising your home LAN with a NAS on it. It works for the stick itself and for devices connected through it, such as a laptop or a GL.iNet router behind the stick. Traffic to those subnets isn't part of the 5G hardware fast path: Linux on the stick routes it into `tailscale0`. vosclean adds a MASQUERADE rule and TCP MSS clamping for that (`vosclean tsfw`, re-applied by the watch loop). Tested: DNS over TCP to a home router at `10.0.0.1` from a laptop behind a GL.iNet behind the stick.
+  * **A ping test can mislead you.** With routes off, a private address such as `10.0.0.1` may still answer *from the carrier's own network* (O2 does). Test a real service, not ping.
+* **Use exit node** picks another device (one that offers itself as an exit node) for **the stick's own traffic**. Devices connected through the stick reach the internet through the hardware fast path (IPA), which bypasses Linux routing, so an exit node does **not** apply to them. If you need that, run the exit node on the router or computer behind the stick instead.
+* **Advertise as exit node** offers the stick itself as an exit node to the rest of your tailnet. Approve it in the Tailscale admin console.
+* **Reconnecting keeps these settings:** "Connect" re-runs `tailscale up --reset` with them restated.
+
 **Tiny leaves out:** Tailscale SSH (use the stick's normal sshd over the tailnet), Taildrop, Serve/Funnel, MagicDNS handling, iptables management and log upload. It keeps routing, NAT traversal, port mapping, exit node and subnet advertising, health reporting and the CLI. Community "tiny" builds for GL.iNet routers also exist (for example admonstrator/glinet-tailscale-updater). Those are UPX-compressed third-party binaries without published checksums, so they're not used here.
 
 ## Cell scanner (neighbour cells)

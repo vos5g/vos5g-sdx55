@@ -729,10 +729,10 @@ index 00000000..b023190d
 +}
 diff --git a/backend/pkg/api/zz_vosclean_tailscale.go b/backend/pkg/api/zz_vosclean_tailscale.go
 new file mode 100644
-index 00000000..58e0650b
+index 00000000..35231e4e
 --- /dev/null
 +++ b/backend/pkg/api/zz_vosclean_tailscale.go
-@@ -0,0 +1,587 @@
+@@ -0,0 +1,666 @@
 +package api
 +
 +// vosclean: real Tailscale management for the Compal RXM-G1 / VOS 5G.
@@ -753,6 +753,7 @@ index 00000000..58e0650b
 +	"encoding/json"
 +	"fmt"
 +	"io"
++	"net"
 +	"net/http"
 +	"os"
 +	"os/exec"
@@ -835,6 +836,7 @@ index 00000000..58e0650b
 +	}
 +	for i := 0; i < 20; i++ { // wait for the LocalAPI socket
 +		if _, err := os.Stat("/var/run/tailscale/tailscaled.sock"); err == nil {
++			tsForwarding()
 +			return nil
 +		}
 +		time.Sleep(500 * time.Millisecond)
@@ -847,15 +849,23 @@ index 00000000..58e0650b
 +	_ = exec.Command("systemctl", "reset-failed", tsUnit).Run()
 +}
 +
-+func tsExitNodeAdvertised() bool {
++type tsPrefsJSON struct {
++	AdvertiseRoutes []string
++	RouteAll        bool
++	ExitNodeID      string
++	ExitNodeIP      string
++}
++
++func tsPrefs() (tsPrefsJSON, bool) {
++	var p tsPrefsJSON
 +	out, err := tsRun(8*time.Second, "debug", "prefs")
-+	if err != nil {
-+		return false
++	if err != nil || json.Unmarshal([]byte(out), &p) != nil {
++		return p, false
 +	}
-+	var p struct{ AdvertiseRoutes []string }
-+	if json.Unmarshal([]byte(out), &p) != nil {
-+		return false
-+	}
++	return p, true
++}
++
++func (p tsPrefsJSON) exitNodeAdvertised() bool {
 +	for _, r := range p.AdvertiseRoutes {
 +		if r == "0.0.0.0/0" || r == "::/0" {
 +			return true
@@ -864,15 +874,30 @@ index 00000000..58e0650b
 +	return false
 +}
 +
++func tsExitNodeAdvertised() bool {
++	p, _ := tsPrefs()
++	return p.exitNodeAdvertised()
++}
++
++// tsForwarding (re)applies the iptables rules that let devices behind the stick
++// use accepted subnet routes: MASQUERADE out of tailscale0 and MSS clamping.
++// vosclean's watch loop keeps them in place if QCMAP flushes the tables.
++func tsForwarding() {
++	_ = exec.Command("/data/vosclean/bin/vosclean", "tsfw").Run()
++}
++
 +type tsPeerJSON struct {
-+	HostName     string
-+	DNSName      string
-+	TailscaleIPs []string
-+	OS           string
-+	Online       bool
-+	LastSeen     string
-+	Relay        string
-+	ExitNode     bool
++	HostName       string
++	DNSName        string
++	TailscaleIPs   []string
++	OS             string
++	Online         bool
++	LastSeen       string
++	Relay          string
++	ExitNode       bool
++	ExitNodeOption bool
++	ID             string
++	PrimaryRoutes  []string
 +}
 +
 +func tsPeerOut(p tsPeerJSON) map[string]any {
@@ -883,6 +908,7 @@ index 00000000..58e0650b
 +	return map[string]any{
 +		"hostname": p.HostName, "dns_name": strings.TrimSuffix(p.DNSName, "."), "tailscale_ips": ips,
 +		"os": p.OS, "online": p.Online, "last_seen": p.LastSeen, "relay": p.Relay, "exit_node": p.ExitNode,
++		"exit_node_option": p.ExitNodeOption, "routes": append([]string{}, p.PrimaryRoutes...),
 +	}
 +}
 +
@@ -956,7 +982,23 @@ index 00000000..58e0650b
 +		st.Health = []string{}
 +	}
 +	out["health"] = st.Health
-+	out["exit_node_advertised"] = tsExitNodeAdvertised()
++	prefs, _ := tsPrefs()
++	out["exit_node_advertised"] = prefs.exitNodeAdvertised()
++	out["accept_routes"] = prefs.RouteAll
++	inUse := prefs.ExitNodeIP
++	if inUse == "" && prefs.ExitNodeID != "" {
++		for _, p := range st.Peer {
++			if p.ID == prefs.ExitNodeID {
++				for _, ip := range p.TailscaleIPs {
++					if strings.Count(ip, ".") == 3 {
++						inUse = ip
++						break
++					}
++				}
++			}
++		}
++	}
++	out["exit_node_in_use"] = inUse
 +	return out
 +}
 +
@@ -1121,8 +1163,19 @@ index 00000000..58e0650b
 +		host = "vos5g"
 +	}
 +	args := []string{"up", "--reset", "--netfilter-mode=off", "--accept-dns=false", "--hostname=" + host}
-+	if tsExitNodeAdvertised() {
-+		args = append(args, "--advertise-exit-node")
++	// "up --reset" must restate every setting we keep, or it would drop them
++	if prefs, ok := tsPrefs(); ok {
++		if prefs.exitNodeAdvertised() {
++			args = append(args, "--advertise-exit-node")
++		}
++		if prefs.RouteAll {
++			args = append(args, "--accept-routes")
++		}
++		if prefs.ExitNodeIP != "" {
++			args = append(args, "--exit-node="+prefs.ExitNodeIP, "--exit-node-allow-lan-access")
++		} else if prefs.ExitNodeID != "" {
++			args = append(args, "--exit-node="+prefs.ExitNodeID, "--exit-node-allow-lan-access")
++		}
 +	}
 +	done := make(chan error, 1)
 +	var out []byte
@@ -1162,6 +1215,7 @@ index 00000000..58e0650b
 +		Action  string `json:"action"`
 +		Variant string `json:"variant"`
 +		Enabled bool   `json:"enabled"`
++		Node    string `json:"node"`
 +	}
 +	_ = json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&body)
 +	ok := func(extra map[string]any) {
@@ -1246,6 +1300,31 @@ index 00000000..58e0650b
 +			_ = os.WriteFile(tsBootFlag, []byte("1\n"), 0644)
 +		} else {
 +			_ = os.Remove(tsBootFlag)
++		}
++		ok(nil)
++	case "set_accept_routes":
++		if out, err := tsRun(15*time.Second, "set", fmt.Sprintf("--accept-routes=%v", body.Enabled)); err != nil {
++			bad("accept_routes_failed", err, out)
++			return
++		}
++		if body.Enabled {
++			tsEnableForwarding()
++		}
++		tsForwarding()
++		ok(nil)
++	case "set_use_exit_node":
++		node := strings.TrimSpace(body.Node)
++		args := []string{"set", "--exit-node="}
++		if node != "" {
++			if ip := net.ParseIP(node); ip == nil {
++				bad("bad_exit_node", nil, "not an IP address: "+node)
++				return
++			}
++			args = []string{"set", "--exit-node=" + node, "--exit-node-allow-lan-access=true"}
++		}
++		if out, err := tsRun(20*time.Second, args...); err != nil {
++			bad("exit_node_failed", err, out)
++			return
 +		}
 +		ok(nil)
 +	case "set_exit_node":
@@ -1826,3 +1905,256 @@ index b6bb58db..7b88d05e 100644
  	}
  
  	certPath = filepath.Join(certDir, "cert.pem")
+diff --git a/backend/web/out/.gitkeep b/backend/web/out/.gitkeep
+deleted file mode 100644
+index 6484c98c..00000000
+--- a/backend/web/out/.gitkeep
++++ /dev/null
+@@ -1 +0,0 @@
+-# Keep folder structure for embed.FS
+diff --git a/public/locales/en/monitoring.json b/public/locales/en/monitoring.json
+index 3c6d7cba..e430495c 100644
+--- a/public/locales/en/monitoring.json
++++ b/public/locales/en/monitoring.json
+@@ -426,6 +426,12 @@
+     "boot_toggle_error": "Failed to update boot setting",
+     "exit_node_label": "Advertise as exit node",
+     "exit_node_description": "Lets other devices route their internet traffic through this device — you must approve it in the Tailscale admin console.",
++    "accept_routes_label": "Accept subnet routes",
++    "accept_routes_description": "Reach networks other tailnet devices share (for example a NAS at home). Works for this stick and for devices connected through it.",
++    "use_exit_node_label": "Use exit node",
++    "use_exit_node_description": "Sends this stick's own traffic through another device. Devices connected through the stick keep using the 5G hardware path and are not affected.",
++    "use_exit_node_none": "No device in your tailnet offers an exit node yet. Enable \"Run as exit node\" on one and approve it in the admin console.",
++    "use_exit_node_off": "None",
+     "uninstall_button": "Uninstall",
+     "uninstall_confirm_title": "Uninstall Tailscale?",
+     "uninstall_confirm_description": "This will remove Tailscale from this device and disconnect all peers.",
+diff --git a/src/components/monitoring/tailscale/tailscale-connection-card.tsx b/src/components/monitoring/tailscale/tailscale-connection-card.tsx
+index c7ca75ce..bff9b0e1 100644
+--- a/src/components/monitoring/tailscale/tailscale-connection-card.tsx
++++ b/src/components/monitoring/tailscale/tailscale-connection-card.tsx
+@@ -33,6 +33,13 @@ import { Label } from "@/components/ui/label";
+ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+ import { Separator } from "@/components/ui/separator";
+ import { Switch } from "@/components/ui/switch";
++import {
++  Select,
++  SelectContent,
++  SelectItem,
++  SelectTrigger,
++  SelectValue,
++} from "@/components/ui/select";
+ import { Skeleton } from "@/components/ui/skeleton";
+ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+ import { CopyableCommand } from "@/components/ui/copyable-command";
+@@ -83,6 +90,7 @@ export function TailscaleConnectionCard({
+   isDisconnecting,
+   isTogglingService,
+   isTogglingExitNode,
++  isTogglingRoutes,
+   isUninstalling,
+   installResult,
+   error,
+@@ -93,6 +101,8 @@ export function TailscaleConnectionCard({
+   stopService,
+   setBootEnabled,
+   setExitNodeAdvertised,
++  setAcceptRoutes,
++  setUseExitNode,
+   uninstall,
+   runInstall,
+   refresh,
+@@ -103,6 +113,17 @@ export function TailscaleConnectionCard({
+   const [installVariant, setInstallVariant] = useState<"official" | "tiny">(
+     "official",
+   );
++  // vosclean: peers that offer to be an exit node (keep the current one listed)
++  const exitNodeOptions = (status?.peers ?? [])
++    .filter(
++      (p) =>
++        (p.exit_node_option || p.exit_node) && getIPv4(p.tailscale_ips) !== "—",
++    )
++    .map((p) => ({
++      ip: getIPv4(p.tailscale_ips),
++      name: p.hostname || trimDNS(p.dns_name),
++      online: p.online,
++    }));
+ 
+   const handleReboot = (e: React.MouseEvent) => {
+     e.preventDefault();
+@@ -720,6 +741,67 @@ export function TailscaleConnectionCard({
+               />
+             </div>
+ 
++            {/* vosclean: accept subnet routes */}
++            <Separator />
++            <div className="flex items-center justify-between gap-3">
++              <div className="min-w-0">
++                <p className="text-sm font-semibold text-muted-foreground">
++                  {t("tailscale.accept_routes_label", "Accept subnet routes")}
++                </p>
++                <p className="text-xs text-muted-foreground">
++                  {t(
++                    "tailscale.accept_routes_description",
++                    "Reach networks other tailnet devices share (for example a NAS at home). Works for this stick and for devices connected through it.",
++                  )}
++                </p>
++              </div>
++              <Switch
++                checked={status?.accept_routes ?? false}
++                onCheckedChange={() => setAcceptRoutes(!(status?.accept_routes ?? false))}
++                disabled={isTogglingRoutes}
++                aria-label={t("tailscale.accept_routes_label", "Accept subnet routes")}
++              />
++            </div>
++
++            {/* vosclean: use another device as exit node */}
++            <Separator />
++            <div className="flex flex-col gap-2 @md/card:flex-row @md/card:items-center @md/card:justify-between">
++              <div className="min-w-0">
++                <p className="text-sm font-semibold text-muted-foreground">
++                  {t("tailscale.use_exit_node_label", "Use exit node")}
++                </p>
++                <p className="text-xs text-muted-foreground">
++                  {exitNodeOptions.length === 0 && !status?.exit_node_in_use
++                    ? t(
++                        "tailscale.use_exit_node_none",
++                        "No device in your tailnet offers an exit node yet. Enable \"Run as exit node\" on one and approve it in the admin console.",
++                      )
++                    : t(
++                        "tailscale.use_exit_node_description",
++                        "Sends this stick's own traffic through another device. Devices connected through the stick keep using the 5G hardware path and are not affected.",
++                      )}
++                </p>
++              </div>
++              <Select
++                value={status?.exit_node_in_use || "none"}
++                onValueChange={(v) => setUseExitNode(v === "none" ? "" : v)}
++                disabled={isTogglingRoutes || (exitNodeOptions.length === 0 && !status?.exit_node_in_use)}
++              >
++                <SelectTrigger className="w-full @md/card:w-48" aria-label={t("tailscale.use_exit_node_label", "Use exit node")}>
++                  <SelectValue />
++                </SelectTrigger>
++                <SelectContent>
++                  <SelectItem value="none">{t("tailscale.use_exit_node_off", "None")}</SelectItem>
++                  {exitNodeOptions.map((p) => (
++                    <SelectItem key={p.ip} value={p.ip}>
++                      {p.name}
++                      {p.online ? "" : ` (${t("tailscale.peer_offline", "offline")})`}
++                    </SelectItem>
++                  ))}
++                </SelectContent>
++              </Select>
++            </div>
++
+             {/* Health warnings */}
+             {health.length > 0 && (
+               <>
+diff --git a/src/hooks/use-tailscale.ts b/src/hooks/use-tailscale.ts
+index 652d1110..21d6033e 100644
+--- a/src/hooks/use-tailscale.ts
++++ b/src/hooks/use-tailscale.ts
+@@ -49,6 +49,8 @@ export interface TailscalePeer {
+   last_seen: string;
+   relay: string;
+   exit_node: boolean;
++  exit_node_option?: boolean;
++  routes?: string[];
+ }
+ 
+ export interface TailscaleStatus {
+@@ -65,6 +67,8 @@ export interface TailscaleStatus {
+   install_hint?: string;
+   install_variant?: "official" | "tiny" | "opkg";
+   exit_node_advertised?: boolean;
++  accept_routes?: boolean;
++  exit_node_in_use?: string;
+   error_detail?: string;
+   other_vpn_installed?: boolean;
+   other_vpn_name?: string;
+@@ -77,6 +81,7 @@ export interface UseTailscaleReturn {
+   isDisconnecting: boolean;
+   isTogglingService: boolean;
+   isTogglingExitNode: boolean;
++  isTogglingRoutes: boolean;
+   isUninstalling: boolean;
+   installResult: InstallResult;
+   error: string | null;
+@@ -87,6 +92,8 @@ export interface UseTailscaleReturn {
+   stopService: () => Promise<boolean>;
+   setBootEnabled: (enabled: boolean) => Promise<boolean>;
+   setExitNodeAdvertised: (enabled: boolean) => Promise<boolean>;
++  setAcceptRoutes: (enabled: boolean) => Promise<boolean>;
++  setUseExitNode: (ip: string) => Promise<boolean>;
+   uninstall: () => Promise<boolean>;
+   runInstall: (variant: "official" | "tiny") => Promise<void>;
+   refresh: () => void;
+@@ -100,6 +107,7 @@ export function useTailscale(): UseTailscaleReturn {
+   const [isDisconnecting, setIsDisconnecting] = useState(false);
+   const [isTogglingService, setIsTogglingService] = useState(false);
+   const [isTogglingExitNode, setIsTogglingExitNode] = useState(false);
++  const [isTogglingRoutes, setIsTogglingRoutes] = useState(false);
+   const [isUninstalling, setIsUninstalling] = useState(false);
+   const [installResult, setInstallResult] = useState<InstallResult>({
+     success: true,
+@@ -370,6 +378,43 @@ export function useTailscale(): UseTailscaleReturn {
+     [postAction, query, t],
+   );
+ 
++  // vosclean: accept subnet routes / use another node as exit node
++  const routeAction = useCallback(
++    async (body: Record<string, unknown>, fallback: string): Promise<boolean> => {
++      setIsTogglingRoutes(true);
++      setError(null);
++      try {
++        const json = await postAction(body);
++        if (!mountedRef.current) return false;
++        if (!json.success) {
++          setError(resolveErrorMessage(t, json.error, json.detail, fallback));
++          return false;
++        }
++        await query.refetch();
++        return true;
++      } catch (err) {
++        if (!mountedRef.current) return false;
++        setError(err instanceof Error ? err.message : fallback);
++        return false;
++      } finally {
++        if (mountedRef.current) setIsTogglingRoutes(false);
++      }
++    },
++    [postAction, query, t],
++  );
++
++  const setAcceptRoutes = useCallback(
++    (enabled: boolean) =>
++      routeAction({ action: "set_accept_routes", enabled }, "Failed to update subnet routes"),
++    [routeAction],
++  );
++
++  const setUseExitNode = useCallback(
++    (ip: string) =>
++      routeAction({ action: "set_use_exit_node", node: ip }, "Failed to set exit node"),
++    [routeAction],
++  );
++
+   // ---------------------------------------------------------------------------
+   // Install via opkg
+   // ---------------------------------------------------------------------------
+@@ -446,6 +491,7 @@ export function useTailscale(): UseTailscaleReturn {
+     isDisconnecting,
+     isTogglingService,
+     isTogglingExitNode,
++    isTogglingRoutes,
+     isUninstalling,
+     installResult,
+     error: errorMessage,
+@@ -456,6 +502,8 @@ export function useTailscale(): UseTailscaleReturn {
+     stopService,
+     setBootEnabled,
+     setExitNodeAdvertised,
++    setAcceptRoutes,
++    setUseExitNode,
+     uninstall,
+     runInstall,
+     refresh: () => {
