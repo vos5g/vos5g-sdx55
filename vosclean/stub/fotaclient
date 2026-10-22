@@ -1,0 +1,4 @@
+#!/bin/sh
+# vosclean: vendor fotaclient disabled (remote command / log upload / unsigned update path)
+logger -t vosclean "blocked fotaclient call: $*" 2>/dev/null
+exit 0

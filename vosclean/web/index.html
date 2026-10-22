@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VOS 5G</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--ink:#16181d;--mute:#6b7280;--line:#e3e5ea;--acc:#2f6fed;--good:#1f9d55;--ok:#c58a00;--bad:#d64545;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a20;--ink:#e8eaee;--mute:#8b93a1;--line:#262a33;--acc:#6c9bff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:2;flex-wrap:wrap}
+header b{font-size:15px;letter-spacing:.2px}#hdrstat{color:var(--mute);font-size:13px}
+nav{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}nav button{border:0;background:none;color:var(--mute);padding:6px 10px;border-radius:6px;cursor:pointer;font:inherit}
+nav button.on{background:var(--bg);color:var(--ink);font-weight:600}
+main{max-width:1100px;margin:0 auto;padding:18px 16px 60px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--mute);font-weight:600}
+.big{font-size:26px;font-weight:650;font-family:var(--mono)}.sub{color:var(--mute);font-size:12.5px}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0}dt{color:var(--mute)}dd{margin:0;font-family:var(--mono);text-align:right}
+.meter{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:3px 0 9px}.meter i{display:block;height:100%}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:600;font-size:12px}
+td.n{font-family:var(--mono);text-align:right}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line)}
+.bands{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:6px;margin:8px 0}
+.bands label{display:flex;gap:5px;align-items:center;padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:12.5px;cursor:pointer}
+button.act,select,input,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+button.act{cursor:pointer;background:var(--acc);border-color:var(--acc);color:#fff}button.act.sec{background:var(--card);color:var(--ink);border-color:var(--line)}button.act.warn{background:var(--bad);border-color:var(--bad)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;max-height:320px;overflow:auto;margin:6px 0 0}
+.note{color:var(--mute);font-size:12.5px;margin:4px 0 8px}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;display:none;max-width:90vw}
+.hide{display:none}
+</style></head><body>
+<header><b>VOS 5G</b><span id="hdrstat">connecting…</span>
+<nav id="nav"><button data-t="ov" class="on">Overview</button><button data-t="sig">Signal</button><button data-t="bands">Bands &amp; cells</button><button data-t="sms">SMS</button><button data-t="net">Network</button><button data-t="sys">System</button></nav></header>
+<main>
+<section id="ov">
+ <div class="grid">
+  <div class="card"><h3>Connection</h3><div class="big" id="o_rat">–</div><div class="sub" id="o_op">–</div><div class="sub" id="o_conn">–</div></div>
+  <div class="card"><h3>Serving cell</h3><dl id="o_cell"></dl></div>
+  <div class="card"><h3>Signal</h3><div id="o_sig"></div></div>
+  <div class="card"><h3>Data</h3><dl id="o_data"></dl></div>
+ </div>
+ <div class="card" style="margin-top:14px"><h3>Carrier aggregation</h3><table id="o_ca"></table><div class="note" id="o_endc"></div></div>
+ <div class="card" style="margin-top:14px"><h3>Temperatures</h3><div class="grid" id="o_temp" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div></div>
+</section>
+<section id="sig" class="hide">
+ <div class="grid"><div class="card"><h3>LTE (AT+BINFO)</h3><dl id="s_lte"></dl></div><div class="card"><h3>5G NR (AT+BNRINFO)</h3><dl id="s_nr"></dl></div></div>
+ <div class="card" style="margin-top:14px"><h3>Per-antenna receive</h3><table id="s_rx"></table></div>
+</section>
+<section id="bands" class="hide">
+ <div class="card"><h3>Network mode</h3><div class="row"><select id="b_rat"><option value="88">Auto (UMTS / LTE / 5G)</option><option value="80">LTE + 5G</option><option value="64">5G only</option><option value="16">LTE only</option><option value="24">UMTS + LTE</option></select><button class="act" onclick="setRat()">Apply</button><span class="sub" id="b_ratcur"></span></div></div>
+ <div class="card" style="margin-top:14px"><h3>Band selection</h3>
+  <div class="note">Unticking every band you can't receive locks the modem to the rest. If you lose service, use <b>Restore defaults</b>.</div>
+  <div class="row"><select id="b_op"><option value="2">LTE</option><option value="3">5G NSA</option><option value="4">5G SA</option></select><button class="act sec" onclick="allBands(true)">All</button><button class="act sec" onclick="allBands(false)">None</button></div>
+  <div class="bands" id="b_list"></div>
+  <div class="row"><button class="act" onclick="setBands()">Apply bands</button><button class="act sec" onclick="restoreBands()">Restore defaults (all types)</button></div></div>
+ <div class="grid" style="margin-top:14px">
+  <div class="card"><h3>5G cell lock</h3><div class="sub" id="b_nrcell"></div>
+   <div class="row"><input id="nc_pci" placeholder="PCI" size="5"><input id="nc_arfcn" placeholder="ARFCN" size="8"><select id="nc_scs"><option value="1">30 kHz</option><option value="0">15 kHz</option></select><input id="nc_band" placeholder="Band" size="4"></div>
+   <div class="row"><button class="act" onclick="nrLock()">Lock</button><button class="act sec" onclick="nrFill()">Use current cell</button><button class="act sec" onclick="post({a:'nr_cell_unlock'},'bands')">Unlock</button></div></div>
+  <div class="card"><h3>LTE cell lock</h3><div class="sub" id="b_ltecell"></div>
+   <div class="row"><input id="lc_pci" placeholder="PCI" size="5"><input id="lc_freq" placeholder="EARFCN" size="8"></div>
+   <div class="row"><button class="act" onclick="lteLock()">Lock</button><button class="act sec" onclick="post({a:'lte_cell_unlock'},'bands')">Unlock</button></div></div>
+ </div>
+</section>
+<section id="sms" class="hide">
+ <div class="card"><h3>Inbox</h3><table id="m_list"></table><div class="sub" id="m_cap"></div></div>
+ <div class="card" style="margin-top:14px"><h3>Send</h3><div class="row"><input id="m_to" placeholder="+447…" size="16"></div><textarea id="m_msg" rows="3" style="width:100%" maxlength="160" placeholder="Message (plain text, up to 160 characters)"></textarea><div class="row"><button class="act" onclick="sendSms()">Send</button></div></div>
+</section>
+<section id="net" class="hide">
+ <div class="grid">
+  <div class="card"><h3>WWAN</h3><dl id="n_wwan"></dl></div>
+  <div class="card"><h3>SIM</h3><pre id="n_card"></pre></div>
+ </div>
+ <div class="card" style="margin-top:14px"><h3>APN profile 1</h3><div id="n_prof" class="sub"></div>
+  <div class="row"><input id="a_apn" placeholder="APN" size="22"><select id="a_pdp"><option value="3">IPv4v6</option><option value="0">IPv4</option><option value="2">IPv6</option></select><select id="a_auth"><option value="0">No auth</option><option value="1">PAP</option><option value="2">CHAP</option><option value="3">PAP/CHAP</option></select><input id="a_user" placeholder="user (optional)" size="12"><input id="a_pw" placeholder="password (optional)" size="12" type="password"><button class="act" onclick="setApn()">Save</button></div></div>
+ <div class="card" style="margin-top:14px"><h3>USB mode (next boot)</h3><div class="sub" id="n_usb"></div>
+  <div class="row"><select id="u_mode"><option value="9063">9063: ECM / RNDIS / MBIM (default)</option><option value="9165">9165: ECM + DIAG + ADB + AT port</option><option value="9091">9091: QMI + DIAG + ADB + AT (for some routers)</option></select><button class="act" onclick="usbMode()">Set</button></div>
+  <div class="note">Takes effect after a reboot. 9091 is QMI-only: this page won't be reachable over USB in that mode. Switch back with SSH or a router.</div></div>
+ <div class="card" style="margin-top:14px"><h3>Connected devices</h3><pre id="n_clients"></pre></div>
+</section>
+<section id="sys" class="hide">
+ <div class="grid"><div class="card"><h3>Device</h3><dl id="y_info"></dl></div><div class="card"><h3>vosclean</h3><pre id="y_vc"></pre></div></div>
+ <div class="card" style="margin-top:14px"><h3>AT console</h3><div class="row"><input id="y_at" placeholder="AT+BINFO" size="30" onkeydown="if(event.key==='Enter')atRun()"><button class="act" onclick="atRun()">Send</button></div><pre id="y_atout"></pre></div>
+ <div class="card" style="margin-top:14px"><h3>Storage &amp; log</h3><pre id="y_df"></pre><pre id="y_log"></pre></div>
+ <div class="card" style="margin-top:14px"><h3>Power</h3><button class="act warn" onclick="if(confirm('Reboot the modem?'))post({a:'reboot'})">Reboot modem</button></div>
+</section>
+</main><div id="toast"></div>
+<script>
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let tab='ov',timer=null,state={};
+function toast(t){const e=$('toast');e.textContent=t;e.style.display='block';clearTimeout(e._t);e._t=setTimeout(()=>e.style.display='none',4500)}
+function secs(txt){const o={};let k=null;for(const l of txt.split('\n')){const m=l.match(/^### (\S+)/);if(m){k=m[1];o[k]=[];continue}if(k)o[k].push(l)}for(const k in o)o[k]=o[k].join('\n');return o}
+async function get(a){const r=await fetch('cgi-bin/api.sh?a='+a,{cache:'no-store'});if(!r.ok)throw new Error(r.status);return secs(await r.text())}
+async function post(f,refresh){const b=new URLSearchParams(f);try{const r=await fetch('cgi-bin/api.sh',{method:'POST',headers:{'X-Vosclean':'1','Content-Type':'application/x-www-form-urlencoded'},body:b});const t=(await r.text()).trim();toast(t.split('\n').filter(x=>x&&!/^rc: 0, error: 0$/.test(x)).slice(-3).join(' · ')||'Done');if(refresh)load(refresh);return t}catch(e){toast('Failed: '+e.message)}}
+const num=(s,re)=>{const m=(s||'').match(re);return m?m[1]:null};
+const dl=(el,rows)=>{$(el).innerHTML=rows.filter(r=>r[1]!==null&&r[1]!==undefined&&r[1]!=='').map(r=>`<dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd>`).join('')};
+function q(v,lo,hi){if(v===null)return 0;return Math.max(0,Math.min(1,(v-lo)/(hi-lo)))}
+function col(f){return f>.66?'var(--good)':f>.33?'var(--ok)':'var(--bad)'}
+function meter(label,v,unit,lo,hi){if(v===null)return'';const f=q(+v,lo,hi);return `<div class="row" style="justify-content:space-between;margin:0"><span class="sub">${label}</span><b style="font-family:var(--mono)">${v} ${unit}</b></div><div class="meter"><i style="width:${(f*100).toFixed(0)}%;background:${col(f)}"></i></div>`}
+function fmtB(n){n=+n;if(!isFinite(n))return null;const u=['B','KB','MB','GB','TB'];let i=0;while(n>=1024&&i<4){n/=1024;i++}return n.toFixed(i?1:0)+' '+u[i]}
+function fmtUp(s){s=+s;const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return(d?d+'d ':'')+h+'h '+m+'m'}
+function parseRx(t){const out=[];for(const l of (t||'').split('\n')){const m=l.match(/^RX(\d)[: ]+power: (-?\d+) dBm.*?rsrp: (-?\d+) dBm.*?sinr: (-?\d+) dB/);if(m)out.push(m.slice(1));else{const m2=l.match(/^RX(\d) (power|rsrp|sinr): (-?\d+)/);if(m2){let r=out.find(x=>x[0]===m2[1]);if(!r){r=[m2[1],null,null,null];out.push(r)}r[{power:1,rsrp:2,sinr:3}[m2[2]]]=m2[3]}}}return out}
+async function loadOv(){const s=await get('dash');state.dash=s;
+ const rat=num(s.rat,/RAT: (\S+)/)||'–';$('o_rat').textContent=rat.replace('NR5G_SA','5G SA').replace('NR5G_NSA','5G NSA');
+ const op=(s.operator||'').split('\n').filter(l=>l&&!/^rc:/.test(l)).join(' ').trim();const plmn=num(op,/\((\d{5,6})\)/);const names={'23410':'O2 UK','23415':'Vodafone UK','23420':'Three UK','23430':'EE','23433':'EE'};
+ $('o_op').textContent=(names[plmn]||op||'–')+(plmn?' · '+plmn:'')+(/Home/.test(s.roaming)?' · home':/Roam/i.test(s.roaming)?' · roaming':'');
+ $('o_conn').textContent=(num(s.reg,/State: (.+)/)||'')+' · data '+(num(s.conn,/status: (\w+)/)||'?').toLowerCase();
+ const b=(s.band||'').split('\n').map(l=>l.match(/^(LTE|NR5G)\s+(\d+)\s+(.*?Band \d+)\s+.*?–\s*(.*)$/)).filter(Boolean);
+ const nr=s.nr||'',lte=s.lte||'';const nrOn=!/not available/.test(nr);
+ const rows=[];b.forEach(m=>{rows.push([m[3].replace('NR5G ','n').replace('LTE Band ','B').replace('NR5G Band ','n'), m[4]+' · ch '+m[2]])});
+ if(nrOn){rows.push(['NR PCI',num(nr,/physical cell ID:(\d+)/)],['NR ARFCN',num(nr,/EARFCN:(\d+)/)],['NR RRC',num(nr,/RRC STATE:(\S+)/)],['UL TX power',num(nr,/PUSCH TX power :(-?\d+)/)&&num(nr,/PUSCH TX power :(-?\d+)/)+' dBm'])}
+ if(/PCC INFO/.test(lte)){rows.push(['LTE PCI',num(lte,/physical cell ID (\d+)/)],['LTE EARFCN',num(lte,/EARFCN (\d+)/)],['TAC',num(lte,/TAC (\d+)/)],['Cell ID',num(lte,/Serving Cell ID (\d+)/)],['LTE RRC',num(lte,/RRC STATE:(\S+)/)])}
+ dl('o_cell',rows);
+ let sig='';for(const l of (s.signal||'').split('\n')){const m=l.match(/^(LTE|NR5G) (.*)$/);if(!m)continue;const g=k=>num(m[2],new RegExp(k+': (-?\\d+)'));sig+=`<div class="sub" style="margin-top:4px"><b>${m[1]==='NR5G'?'5G':'LTE'}</b></div>`+meter('RSRP',g('rsrp'),'dBm',-120,-75)+meter('RSRQ',g('rsrq'),'dB',-20,-5)+meter('SNR / SINR',g('snr'),'dB',-5,25)}
+ $('o_sig').innerHTML=sig||'<span class="sub">No signal reported</span>';
+ const st=(s.stats||'').match(/bytes: \( *(\d+) *\/ *(\d+) *\)/);
+ dl('o_data',[['IPv4',num(s.wwan,/IPV4 IP address: (\S+)/)],['IPv6',num(s.wwan,/IPV6 IP address: (\S+)/)],['DNS',num(s.wwan,/IPV4 Primary DNS: (\S+)/)],['Sent',st&&fmtB(st[1])],['Received',st&&fmtB(st[2])],['Uptime',s.uptime&&fmtUp(s.uptime)]]);
+ const ca=[];for(const [k,t] of [['LTE',s.lca],['5G',s.nrca]]){for(const l of (t||'').split('\n')){const m=l.match(/^(PCC|SCC \d)\s+Band:(\S+) RSRP:(\S+) dbm(?: EARFCN:(\d+))?(?: PCI:(\d+))?/);if(m&&m[2]!=='<NA>')ca.push([k,m[1],m[2],m[3],m[4]||'',m[5]||''])}}
+ $('o_ca').innerHTML='<tr><th>RAT</th><th>Carrier</th><th>Band</th><th>RSRP</th><th>ARFCN</th><th>PCI</th></tr>'+(ca.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${(r[0]==='5G'?'n':'B')+esc(r[2])}</td><td class="n">${esc(r[3])}</td><td class="n">${esc(r[4])}</td><td class="n">${esc(r[5])}</td></tr>`).join('')||'<tr><td colspan="6" class="sub">No active carriers reported</td></tr>');
+ $('o_endc').textContent=(s.endc||'').split('\n').filter(l=>/:/.test(l)&&!/^AT/.test(l)).join(' · ');
+ const tn={'cpu0-a7-usr':'CPU','mdm-5g-usr':'5G modem','mdm-q6-usr':'Modem DSP','ipa-usr':'IPA','pa-therm1-usr':'PA 1','pa-therm2-usr':'PA 2','sdx-case-therm-usr':'Case','xo-therm-usr':'Crystal'};
+ $('o_temp').innerHTML=(s.temps||'').split('\n').filter(Boolean).map(l=>{const [k,v]=l.split(' ');const c=(+v/1000);return isFinite(c)?`<div><div class="sub">${esc(tn[k]||k)}</div><b style="font-family:var(--mono);color:${c>70?'var(--bad)':c>55?'var(--ok)':'inherit'}">${c.toFixed(1)} °C</b></div>`:''}).join('');
+ $('hdrstat').textContent=$('o_rat').textContent+' · '+(b[0]?b[0][3].replace('NR5G Band ','n').replace('LTE Band ','B'):'')+' · '+(num(s.signal,/rsrp: (-?\d+)/)||'?')+' dBm';
+ // signal tab
+ const lteRows=/PCC INFO/.test(lte)?[['Band',num(lte,/BAND (\d+)/)],['EARFCN',num(lte,/EARFCN (\d+)/)],['PCI',num(lte,/physical cell ID (\d+)/)],['RSRP',num(lte,/RSRP (-?\d+) dBm/)],['RSRQ',num(lte,/RSRQ (-?\d+) dB/)],['SINR',num(lte,/SINR (-?\d+) dB/)],['TX power',num(lte,/TX POWER INFO:(.*)/)],['CQI',num(lte,/PCC CQI (.*)/)],['RRC',num(lte,/RRC STATE:(\S+)/)]]:[['Status','not active']];
+ dl('s_lte',lteRows);
+ dl('s_nr',nrOn?[['Band',num(nr,/NR BAND:(\d+)/)],['ARFCN',num(nr,/EARFCN:(\d+)/)],['DL bandwidth',num(nr,/DL_bandwidth:(\S+)/)],['PCI',num(nr,/physical cell ID:(\d+)/)],['RSRP',num(nr,/RSRP (-?\d+) dBm/)],['RSRQ',num(nr,/RSRQ (-?\d+) dB/)],['SINR',num(nr,/SINR (-?\d+) dB/)],['PUSCH TX',num(nr,/PUSCH TX power :(-?\d+)/)],['PUCCH TX',num(nr,/PUCCH TX power :(-?\d+)/)],['CQI / rank',num(nr,/NR CQI (\d+,RANK \d+)/)],['SSB beam',num(nr,/SSB index (\d+)/)],['RRC',num(nr,/RRC STATE:(\S+)/)]]:[['Status','not active']]);
+ const rx=[...parseRx(lte).map(r=>['LTE',...r]),...parseRx(nr).map(r=>['5G',...r])];
+ $('s_rx').innerHTML='<tr><th>RAT</th><th>Antenna</th><th>Power</th><th>RSRP</th><th>SINR</th></tr>'+(rx.map(r=>`<tr><td>${r[0]}</td><td>RX${r[1]}</td><td class="n">${r[2]??''} dBm</td><td class="n">${r[3]??''} dBm</td><td class="n">${r[4]??''} dB</td></tr>`).join('')||'<tr><td colspan="5" class="sub">No per-antenna data</td></tr>');
+}
+// ---- bands
+function words(sec,head){const i=sec.indexOf(head);if(i<0)return null;const part=sec.slice(i+head.length).split(/\n\s*\n/)[0];return [...part.matchAll(/0x([0-9A-Fa-f]+)/g)].map(m=>BigInt('0x'+m[1]))}
+function capList(cap,re){return [...new Set([...(cap||'').matchAll(re)].map(m=>+m[1]))].sort((a,b)=>a-b)}
+async function loadBands(){const s=await get('bands');state.bands=s;$('b_ratcur').textContent=num(s.rat_pref,/RAT: (.*)/)||'';$('b_nrcell').textContent=num(s.nrcell,/type: (\S+)/)?'Current: '+num(s.nrcell,/type: (\S+)/):'';$('b_ltecell').textContent=((s.ltecell||'').split('\n').filter(l=>l&&!/^rc:/.test(l)).join(' ')||'Current: unlocked');renderBands()}
+function curWords(op){const s=state.bands.pref||'';if(op==='2')return [ (words(s,'LTE Band Pref:')||[0n])[0] ];if(op==='3')return words(s,'NR5G NSA Band Pref:')||[0n];return words(s,'NR5G SA Band Pref:')||[0n]}
+function renderBands(){const op=$('b_op').value,cap=state.bands.cap||'';const list=op==='2'?capList(cap,/LTE EUTRAN Band (\d+)/g).filter(b=>b<=64):capList(cap,/NR5G Band (\d+)/g);const w=curWords(op);
+ $('b_list').innerHTML=list.map(b=>{const wi=Math.floor((b-1)/64),bi=BigInt((b-1)%64);const on=((w[wi]??0n)>>bi)&1n;return `<label><input type="checkbox" data-b="${b}" ${on?'checked':''}>${op==='2'?'B':'n'}${b}</label>`}).join('')}
+function allBands(v){document.querySelectorAll('#b_list input').forEach(c=>c.checked=v)}
+function masks(){const w=[0n,0n,0n,0n,0n];document.querySelectorAll('#b_list input:checked').forEach(c=>{const b=+c.dataset.b;w[Math.floor((b-1)/64)]|=1n<<BigInt((b-1)%64)});return w.map(x=>'0x'+x.toString(16).toUpperCase())}
+function setBands(){const m=masks();if(m.every(x=>x==='0x0'))return toast('Select at least one band');const op=$('b_op').value;if(!confirm('Apply this band selection?'))return;post({a:'set_band',op,m1:m[0],m2:m[1],m3:m[2],m4:m[3],m5:m[4]},'bands')}
+async function restoreBands(){const d=state.bands.defaults||'';if(!d.trim())return toast('No saved defaults');if(!confirm('Restore factory band preferences for LTE, 5G NSA and 5G SA?'))return;for(const op of ['2','3','4']){const l=d.split('\n').find(x=>x.startsWith(op+' '));if(!l)continue;const p=l.trim().split(/\s+/);await post({a:'set_band',op,m1:p[1],m2:p[2]||'0x0',m3:p[3]||'0x0',m4:p[4]||'0x0',m5:p[5]||'0x0'})}load('bands')}
+function setRat(){post({a:'set_rat',v:$('b_rat').value},'bands')}
+function nrFill(){const nr=(state.dash||{}).nr||'';$('nc_pci').value=num(nr,/physical cell ID:(\d+)/)||'';$('nc_arfcn').value=num(nr,/EARFCN:(\d+)/)||'';$('nc_band').value=num(nr,/NR BAND:(\d+)/)||''}
+function nrLock(){if(!confirm('Lock 5G to this cell? The modem will only use this cell until unlocked.'))return;post({a:'nr_cell_lock',pci:$('nc_pci').value,arfcn:$('nc_arfcn').value,scs:$('nc_scs').value,band:$('nc_band').value},'bands')}
+function lteLock(){if(!confirm('Lock LTE to this cell?'))return;post({a:'lte_cell_lock',pci:$('lc_pci').value,freq:$('lc_freq').value},'bands')}
+// ---- sms
+function tbl(txt){const lines=(txt||'').split('\n').filter(l=>l.trim()&&!/^rc:/.test(l)&&!/^-+/.test(l.trim()));if(!lines.length)return{h:[],r:[]};const h=lines[0].trim().split(/\s{2,}/);return{h,r:lines.slice(1).map(l=>l.trim().split(/\s{2,}/))}}
+async function loadSms(){const s=await get('sms');let html='<tr><th>Store</th><th>ID</th><th>Date</th><th>From</th><th>Message</th><th></th></tr>';let n=0;
+ for(const [st,k,name] of [['0','sim','SIM'],['1','nv','Modem']]){const t=tbl(s[k]);for(const r of t.r){n++;html+=`<tr><td>${name}</td><td class="n">${esc(r[0])}</td><td>${esc(r[2]||'')}</td><td>${esc(r[3]||'')}</td><td>${esc(r.slice(4).join('  '))}</td><td><button class="act sec" onclick="if(confirm('Delete?'))post({a:'del_sms',st:'${st}',idx:'${esc(r[0])}'},'sms')">Delete</button></td></tr>`}}
+ $('m_list').innerHTML=n?html:'<tr><td class="sub">No messages</td></tr>';$('m_cap').textContent='SIM: '+(num(s.cap_sim,/Free storage size: (\d+)/)||'?')+' free · Modem: '+(num(s.cap_nv,/Free storage size: (\d+)/)||'?')+' free'}
+function sendSms(){const to=$('m_to').value.trim(),msg=$('m_msg').value;if(!to||!msg)return toast('Number and message needed');if(!confirm('Send this SMS to '+to+'?'))return;post({a:'send_sms',to,msg},'sms')}
+// ---- net
+async function loadNet(){const s=await get('net');
+ dl('n_wwan',[['IPv4',num(s.wwan,/IPV4 IP address: (\S+)/)],['DNS 1',num(s.wwan,/IPV4 Primary DNS: (\S+)/)],['DNS 2',num(s.wwan,/IPV4 Secondary DNS: (\S+)/)],['IPv6',num(s.wwan,/IPV6 IP address: (\S+)/)]]);
+ $('n_card').textContent=(s.card||'').split('\n').filter(l=>/State|PIN1/.test(l)).map(l=>l.trim()).join('\n');
+ const p=tbl(s.profile);const row=p.r.find(r=>/^0?1$/.test(r[0]));$('n_prof').textContent=row?('Current: '+row.slice(1).join(' · ')):'';
+ if(row){const apn=row.find(x=>/\./.test(x)||/^[A-Za-z0-9._-]+$/.test(x)&&x.length>2&&!/^(IPV4V6|IPV4|IPV6|NONE|PAP|CHAP)$/.test(x));if(apn&&!$('a_apn').value)$('a_apn').value=apn}
+ $('n_usb').textContent='Now: '+(num(s.usbcomp,/= *(.*)/)||'?')+' · next boot: '+(s.usbnext||'').trim();
+ $('n_clients').textContent=(s.clients||'').split('\n').filter(l=>l&&!/^rc:/.test(l)).join('\n')||'none'}
+function setApn(){if(!confirm('Change APN profile 1? A wrong APN stops mobile data until corrected.'))return;post({a:'set_apn',apn:$('a_apn').value.trim(),pdp:$('a_pdp').value,auth:$('a_auth').value,user:$('a_user').value,pw:$('a_pw').value},'net')}
+function usbMode(){if(!confirm('Set USB mode '+$('u_mode').value+' for the next reboot?'))return;post({a:'usb_mode',m:$('u_mode').value},'net')}
+// ---- sys
+async function loadSys(){const s=await get('sys');const i=s.info||'';dl('y_info',[['Model',num(i,/Model: (.*)/)],['Radio firmware',num(i,/Revision: (.*)/)],['Build',(i.split('\n').find(l=>/^RXMG/.test(l))||'').trim()],['Uptime',s.uptime&&fmtUp(s.uptime)],['Memory free',(num(s.mem,/MemAvailable:\s+(\d+)/)/1024|0)+' MiB']]);$('y_vc').textContent=(s.vosclean||'').trim();$('y_df').textContent=(s.df||'').trim();$('y_log').textContent=(s.log||'').trim()}
+async function atRun(){const c=$('y_at').value.trim();if(!c)return;$('y_atout').textContent='…';$('y_atout').textContent=await post({a:'at',c})||''}
+// ---- tabs
+const loaders={ov:loadOv,sig:loadOv,bands:loadBands,sms:loadSms,net:loadNet,sys:loadSys};
+async function load(t){try{await loaders[t]()}catch(e){$('hdrstat').textContent='error: '+e.message}}
+$('b_op').onchange=renderBands;
+$('nav').onclick=e=>{const t=e.target.dataset.t;if(!t)return;tab=t;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('hide',s.id!==t));load(t);clearInterval(timer);if(t==='ov'||t==='sig')timer=setInterval(()=>load(t),5000)};
+load('ov');timer=setInterval(()=>load('ov'),5000);
+</script></body></html>

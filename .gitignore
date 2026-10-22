@@ -1,0 +1,8 @@
+dist/
+build/
+*.bin
+*.qcn
+*.img
+*.img.gz
+backups/
+.DS_Store

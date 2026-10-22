@@ -1,0 +1,20 @@
+# vosclean sshd config (bind-mounted over /etc/ssh/sshd_config_readonly)
+Protocol 2
+PermitRootLogin @ROOTLOGIN@
+PasswordAuthentication @PWAUTH@
+PermitEmptyPasswords no
+ChallengeResponseAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+UsePAM yes
+Compression no
+ClientAliveInterval 15
+ClientAliveCountMax 4
+MaxAuthTries 4
+LoginGraceTime 30
+X11Forwarding no
+Subsystem	sftp	/usr/libexec/sftp-server
+HostKey /var/run/ssh/ssh_host_ed25519_key
+HostKey /var/run/ssh/ssh_host_ecdsa_key
+HostKey /var/run/ssh/ssh_host_rsa_key

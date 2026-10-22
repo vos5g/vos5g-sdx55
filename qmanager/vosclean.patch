@@ -1,0 +1,1200 @@
+diff --git a/backend/cmd/server/main.go b/backend/cmd/server/main.go
+index 963dee8e..839de864 100644
+--- a/backend/cmd/server/main.go
++++ b/backend/cmd/server/main.go
+@@ -85,6 +85,11 @@ func main() {
+ 		lastSoftRecover time.Time
+ 	)
+ 	watchdog.SetRecoveryFunc(func(fails int) {
++		// vosclean: pings always run (real latency data); recovery actions
++		// (CFUN toggle / reboot) only when explicitly enabled.
++		if os.Getenv("QM_WATCHDOG") != "1" {
++			return
++		}
+ 		if !recovering.CompareAndSwap(false, true) {
+ 			return // recovery udah jalan, gak boleh numpuk
+ 		}
+@@ -165,7 +170,7 @@ func main() {
+ 
+ 	httpServer := &http.Server{
+ 		Addr:    ":" + port,
+-		Handler: mux,
++		Handler: auditHandler(mux),
+ 	}
+ 
+ 	// Live bandwidth WebSocket server (Go-native, replaces websocat bridge).
+@@ -183,7 +188,7 @@ func main() {
+ 			log.Printf("[TLS] HTTPS Enabled on port %s (cert: %s)", tlsPort, certPath)
+ 			tlsServer = &http.Server{
+ 				Addr:    ":" + tlsPort,
+-				Handler: mux,
++				Handler: auditHandler(mux),
+ 			}
+ 			go func() {
+ 				if err := serveWithPortRetry(tlsServer, certPath, keyPath); err != nil && err != http.ErrServerClosed {
+@@ -228,3 +233,18 @@ func main() {
+ 
+ 	log.Println("[System] QManager Go Core Daemon stopped cleanly.")
+ }
++
++// auditHandler logs every state-changing request (method, path, client) to
++// /data/vosclean/log/qm-requests.log, so actions such as a reboot can later be
++// traced back to the UI. Bodies are not logged (they may hold passwords).
++func auditHandler(next http.Handler) http.Handler {
++	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
++			if f, err := os.OpenFile("/data/vosclean/log/qm-requests.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600); err == nil {
++				fmt.Fprintf(f, "%s %s %s from %s\n", time.Now().UTC().Format("2006-01-02 15:04:05"), r.Method, r.URL.Path, r.RemoteAddr)
++				f.Close()
++			}
++		}
++		next.ServeHTTP(w, r)
++	})
++}
+diff --git a/backend/pkg/api/auth.go b/backend/pkg/api/auth.go
+index 179070cd..9782504c 100644
+--- a/backend/pkg/api/auth.go
++++ b/backend/pkg/api/auth.go
+@@ -19,7 +19,7 @@ type SessionStore struct {
+ 
+ var globalSessions = &SessionStore{
+ 	sessions: make(map[string]time.Time),
+-	filePath: "/etc/qmanager/sessions.json",
++	filePath: "/data/vosclean/qm/etc/sessions.json",
+ }
+ 
+ // LoadSessionsFromDisk is called at startup to restore persisted sessions.
+@@ -104,7 +104,7 @@ type LoginRequest struct {
+ 	Remember bool `json:"remember"`
+ }
+ 
+-const authConfigPath = "/etc/qmanager/auth.json"
++const authConfigPath = "/data/vosclean/qm/etc/auth.json"
+ 
+ // verifyPassword checks password against /etc/qmanager/auth.json using the
+ // same scheme as the original QManager: sha256(salt + password) hex digest.
+diff --git a/backend/pkg/api/bands.go b/backend/pkg/api/bands.go
+index 9a37caec..c0ea316b 100644
+--- a/backend/pkg/api/bands.go
++++ b/backend/pkg/api/bands.go
+@@ -43,7 +43,7 @@ func (s *Server) HandleBandsCurrent(w http.ResponseWriter, r *http.Request) {
+ 		nrdcBands = parseSingleLineParam(resp, `+QNWPREFCFG: "nrdc_nr5g_band",`)
+ 	}
+ 
+-	failoverEnabled := fileExists("/etc/qmanager/band_failover.enabled") || fileExistsAndEquals("/etc/qmanager/band_failover_enabled", "1")
++	failoverEnabled := fileExists("/data/vosclean/qm/etc/band_failover.enabled") || fileExistsAndEquals("/data/vosclean/qm/etc/band_failover_enabled", "1")
+ 	failoverActivated := fileExists("/tmp/qmanager_band_failover")
+ 
+ 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+@@ -149,7 +149,7 @@ func (s *Server) HandleBandsFailoverToggle(w http.ResponseWriter, r *http.Reques
+ 		return
+ 	}
+ 
+-	_ = os.MkdirAll("/etc/qmanager", 0755)
++	_ = os.MkdirAll("/data/vosclean/qm/etc", 0755)
+ 
+ 	isEnabled := false
+ 	if req.Enabled != nil {
+@@ -159,11 +159,11 @@ func (s *Server) HandleBandsFailoverToggle(w http.ResponseWriter, r *http.Reques
+ 	}
+ 
+ 	if isEnabled {
+-		_ = os.WriteFile("/etc/qmanager/band_failover.enabled", []byte("1\n"), 0644)
+-		_ = os.WriteFile("/etc/qmanager/band_failover_enabled", []byte("1\n"), 0644)
++		_ = os.WriteFile("/data/vosclean/qm/etc/band_failover.enabled", []byte("1\n"), 0644)
++		_ = os.WriteFile("/data/vosclean/qm/etc/band_failover_enabled", []byte("1\n"), 0644)
+ 	} else {
+-		_ = os.Remove("/etc/qmanager/band_failover.enabled")
+-		_ = os.Remove("/etc/qmanager/band_failover_enabled")
++		_ = os.Remove("/data/vosclean/qm/etc/band_failover.enabled")
++		_ = os.Remove("/data/vosclean/qm/etc/band_failover_enabled")
+ 		_ = os.Remove("/tmp/qmanager_band_failover")
+ 	}
+ 
+@@ -177,7 +177,7 @@ func (s *Server) HandleBandsFailoverToggle(w http.ResponseWriter, r *http.Reques
+ func (s *Server) HandleBandsFailoverStatus(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	failoverEnabled := fileExists("/etc/qmanager/band_failover.enabled") || fileExistsAndEquals("/etc/qmanager/band_failover_enabled", "1")
++	failoverEnabled := fileExists("/data/vosclean/qm/etc/band_failover.enabled") || fileExistsAndEquals("/data/vosclean/qm/etc/band_failover_enabled", "1")
+ 	failoverActivated := fileExists("/tmp/qmanager_band_failover")
+ 	watcherRunning := fileExists("/tmp/qmanager_band_failover.pid")
+ 
+diff --git a/backend/pkg/api/features.go b/backend/pkg/api/features.go
+index 78476965..10518d01 100644
+--- a/backend/pkg/api/features.go
++++ b/backend/pkg/api/features.go
+@@ -65,13 +65,62 @@ func (s *Server) HandleCellScanStatus(w http.ResponseWriter, r *http.Request) {
+ 		results = []QScanCellResult{}
+ 	}
+ 
++	// vosclean: the cell-scanner page (use-cell-scanner.ts / scan-result.tsx)
++	// needs {status, results:[CellScanResult]} - upstream sent neither.
++	status := "idle"
++	if scanning {
++		status = "running"
++	} else if fileExists(rawScanFile) {
++		status = "complete"
++	}
++	cells := make([]map[string]any, 0, len(results))
++	for _, c := range results {
++		cid, _ := strconv.ParseInt(c.CellID, 16, 64)
++		tac, _ := strconv.ParseInt(c.TAC, 16, 64)
++		mcc, _ := strconv.Atoi(c.MCC)
++		mnc, _ := strconv.Atoi(c.MNC)
++		cell := map[string]any{
++			"id":             fmt.Sprintf("%s-%d-%d", c.Tech, c.ARFCN, c.PCI),
++			"networkType":    c.Tech,
++			"earfcn":         c.ARFCN,
++			"pci":            c.PCI,
++			"band":           c.Band,
++			"bandwidth":      c.Bandwidth,
++			"cellID":         cid,
++			"tac":            tac,
++			"signalStrength": c.RSRP,
++			"mcc":            mcc,
++			"mnc":            mnc,
++			"provider":       plmnName(c.MCC, c.MNC),
++		}
++		if c.Tech == "NR5G" && c.SCS > 0 {
++			cell["scs"] = c.SCS
++		}
++		cells = append(cells, cell)
++	}
++
+ 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+ 		"success":  true,
+ 		"scanning": scanning,
+-		"results":  results,
++		"status":   status,
++		"results":  cells,
+ 	})
+ }
+ 
++func plmnName(mcc, mnc string) string {
++	names := map[string]string{
++		"23410": "O2 UK", "23411": "O2 UK", "23415": "Vodafone UK", "23420": "Three UK",
++		"23430": "EE", "23433": "EE", "23434": "EE", "23458": "Manx Telecom",
++	}
++	if n, ok := names[mcc+mnc]; ok {
++		return n
++	}
++	if mcc == "" || mcc == "-" {
++		return "Unknown"
++	}
++	return mcc + "-" + mnc
++}
++
+ // ParseQScanOutput parses raw AT+QSCAN response lines into structured cells with SCS support
+ func ParseQScanOutput(raw string) []QScanCellResult {
+ 	var results []QScanCellResult
+@@ -172,7 +221,7 @@ func (s *Server) HandleIPPassthrough(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) HandlePingProfile(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	cfg := qmReadJSONFile("/etc/qmanager/ping_profile.json")
++	cfg := qmReadJSONFile("/data/vosclean/qm/etc/ping_profile.json")
+ 	profile := qmStr(cfg["profile"])
+ 	if profile == "" {
+ 		profile = "relaxed"
+@@ -193,7 +242,7 @@ func (s *Server) HandlePingProfile(w http.ResponseWriter, r *http.Request) {
+ 
+ 	// interval_override from watchdog (custom probe interval)
+ 	override := 0
+-	if wd := qmReadJSONFile("/etc/qmanager/watchcat.json"); wd != nil {
++	if wd := qmReadJSONFile("/data/vosclean/qm/etc/watchcat.json"); wd != nil {
+ 		override = qmCfgInt(wd, "interval_override", 0)
+ 	}
+ 	effInterval := interval
+@@ -219,7 +268,7 @@ func (s *Server) HandlePingProfile(w http.ResponseWriter, r *http.Request) {
+ 		if n, ok := asInt(body["interval_sec"]); ok {
+ 			interval = n
+ 		}
+-		writeJSONFile("/etc/qmanager/ping_profile.json", map[string]any{
++		writeJSONFile("/data/vosclean/qm/etc/ping_profile.json", map[string]any{
+ 			"profile":        profile,
+ 			"interval_sec":   interval,
+ 			"fail_secs":      failSecs,
+@@ -247,7 +296,7 @@ func (s *Server) HandlePingProfile(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) HandleQualityThresholds(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	cfg := qmReadJSONFile("/etc/qmanager/quality_thresholds.json")
++	cfg := qmReadJSONFile("/data/vosclean/qm/etc/quality_thresholds.json")
+ 	latencyPreset := "standard"
+ 	lossPreset := "standard"
+ 	if lp, ok := cfg["latency"].(map[string]any); ok {
+@@ -286,7 +335,7 @@ func (s *Server) HandleQualityThresholds(w http.ResponseWriter, r *http.Request)
+ 			if v, ok2 := t["loss"].(map[string]any); ok2 {
+ 				los = v
+ 			}
+-			writeJSONFile("/etc/qmanager/quality_thresholds.json", map[string]any{
++			writeJSONFile("/data/vosclean/qm/etc/quality_thresholds.json", map[string]any{
+ 				"latency": lat,
+ 				"loss":    los,
+ 			})
+@@ -318,7 +367,7 @@ func (s *Server) HandleAdaptivePolling(w http.ResponseWriter, r *http.Request) {
+ 	idleInterval := 10
+ 	idleThreshold := 60
+ 	deepIdleInterval := 60
+-	cfg := qmReadJSONFile("/etc/qmanager/adaptive_polling.json")
++	cfg := qmReadJSONFile("/data/vosclean/qm/etc/adaptive_polling.json")
+ 	if m, ok := cfg["mode"].(string); ok && m != "" {
+ 		mode = m
+ 	}
+@@ -359,7 +408,7 @@ func (s *Server) HandleAdaptivePolling(w http.ResponseWriter, r *http.Request) {
+ 			if v, ok := asInt(body["deep_idle_interval"]); ok {
+ 				deepIdleInterval = v
+ 			}
+-			writeJSONFile("/etc/qmanager/adaptive_polling.json", map[string]any{
++			writeJSONFile("/data/vosclean/qm/etc/adaptive_polling.json", map[string]any{
+ 				"mode": mode, "enabled": enabled,
+ 				"active_grace": activeGrace, "idle_interval": idleInterval,
+ 				"idle_threshold": idleThreshold, "deep_idle_interval": deepIdleInterval,
+@@ -392,7 +441,7 @@ func (s *Server) HandleAdaptivePolling(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) HandleMTU(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	cfg := qmReadJSONFile("/etc/qmanager/mtu.json")
++	cfg := qmReadJSONFile("/data/vosclean/qm/etc/mtu.json")
+ 	mtu := qmCfgInt(cfg, "mtu", 1500)
+ 	auto := true
+ 	if v, ok := cfg["auto"].(bool); ok {
+@@ -408,7 +457,7 @@ func (s *Server) HandleMTU(w http.ResponseWriter, r *http.Request) {
+ 			if n, ok := asInt(body["mtu"]); ok {
+ 				mtu = n
+ 			}
+-			writeJSONFile("/etc/qmanager/mtu.json", map[string]any{"mtu": mtu, "auto": auto})
++			writeJSONFile("/data/vosclean/qm/etc/mtu.json", map[string]any{"mtu": mtu, "auto": auto})
+ 		}
+ 	}
+ 
+@@ -423,7 +472,7 @@ func (s *Server) HandleMTU(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) HandleCustomDNS(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	cfg := qmReadJSONFile("/etc/qmanager/custom_dns.json")
++	cfg := qmReadJSONFile("/data/vosclean/qm/etc/custom_dns.json")
+ 	enabled := qmBool(cfg["enabled"])
+ 	servers := []string{}
+ 	if v, ok := cfg["servers"].([]any); ok {
+@@ -448,7 +497,7 @@ func (s *Server) HandleCustomDNS(w http.ResponseWriter, r *http.Request) {
+ 					}
+ 				}
+ 			}
+-			writeJSONFile("/etc/qmanager/custom_dns.json", map[string]any{
++			writeJSONFile("/data/vosclean/qm/etc/custom_dns.json", map[string]any{
+ 				"enabled": enabled,
+ 				"servers": servers,
+ 			})
+@@ -481,7 +530,7 @@ const (
+ 	qmNfqwsPIDFile         = "/var/run/nfqws.pid"
+ 	qmVideoReloadFlag      = "/tmp/qmanager_video_reload"
+ 	qmVideoPacketsFile     = "/tmp/qmanager_video_packets"
+-	qmHostlistFile         = "/etc/qmanager/video_domains.txt"
++	qmHostlistFile         = "/data/vosclean/qm/etc/video_domains.txt"
+ )
+ 
+ // fileExistsAny reports whether any of the candidate paths exists on disk.
+@@ -752,7 +801,7 @@ func (s *Server) HandleTrafficMasquerade(w http.ResponseWriter, r *http.Request)
+ func (s *Server) HandleSMSForwarding(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	cfg := qmReadJSONFile("/etc/qmanager/sms_forwarding.json")
++	cfg := qmReadJSONFile("/data/vosclean/qm/etc/sms_forwarding.json")
+ 	enabled := qmBool(cfg["enabled"])
+ 	number := qmStr(cfg["number"])
+ 
+@@ -768,7 +817,7 @@ func (s *Server) HandleSMSForwarding(w http.ResponseWriter, r *http.Request) {
+ 		if v, ok := body["number"].(string); ok {
+ 			number = v
+ 		}
+-		writeJSONFile("/etc/qmanager/sms_forwarding.json", map[string]any{
++		writeJSONFile("/data/vosclean/qm/etc/sms_forwarding.json", map[string]any{
+ 			"enabled": enabled,
+ 			"number":  number,
+ 		})
+@@ -850,7 +899,7 @@ func (s *Server) HandleKnownSims(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+ 	// Known SIMs tracked in a JSON list of ICCIDs
+-	path := "/etc/qmanager/known_sims.json"
++	path := "/data/vosclean/qm/etc/known_sims.json"
+ 	sims := []string{} // always non-nil — frontend expects an array, never null
+ 	if data, err := os.ReadFile(path); err == nil {
+ 		_ = json.Unmarshal(data, &sims)
+diff --git a/backend/pkg/api/handlers.go b/backend/pkg/api/handlers.go
+index 0b496b66..78487676 100644
+--- a/backend/pkg/api/handlers.go
++++ b/backend/pkg/api/handlers.go
+@@ -6,6 +6,7 @@ import (
+ 	"fmt"
+ 	"io"
+ 	"math"
++	"net"
+ 	"net/http"
+ 	"os"
+ 	"os/exec"
+@@ -132,8 +133,8 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
+ 
+ 	// System Management & Update Routes — Auth Required
+ 	mux.HandleFunc("/cgi-bin/quecmanager/system/ssh_password.sh", RequireAuth(s.HandleSSHPassword))
+-	mux.HandleFunc("/cgi-bin/quecmanager/system/update.sh", RequireAuth(s.HandleSoftwareUpdate))
+-	mux.HandleFunc("/cgi-bin/quecmanager/system/update_upload.sh", RequireAuth(s.HandleSoftwareUpdateUpload))
++	mux.HandleFunc("/cgi-bin/quecmanager/system/update.sh", RequireAuth(updatesDisabled))
++	mux.HandleFunc("/cgi-bin/quecmanager/system/update_upload.sh", RequireAuth(updatesDisabled))
+ 	mux.HandleFunc("/cgi-bin/quecmanager/system/pending_reboot.sh", RequireAuth(s.HandlePendingReboot))
+ 	mux.HandleFunc("/cgi-bin/quecmanager/system/known_sims.sh", RequireAuth(s.HandleKnownSims))
+ 	mux.HandleFunc("/cgi-bin/quecmanager/cellular/fplmn.sh", RequireAuth(s.HandleFPLMN))
+@@ -754,7 +755,7 @@ func (s *Server) HandleLANDevices(w http.ResponseWriter, r *http.Request) {
+ func (s *Server) HandleDNS(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	cfg := qmReadJSONFile("/etc/qmanager/custom_dns.json")
++	cfg := qmReadJSONFile("/data/vosclean/qm/etc/custom_dns.json")
+ 	mode := qmStr(cfg["mode"])
+ 	if mode == "" {
+ 		mode = "preset"
+@@ -811,7 +812,7 @@ func (s *Server) HandleDNS(w http.ResponseWriter, r *http.Request) {
+ 			if e, ok := body["enabled"].(bool); ok {
+ 				enabled = e
+ 			}
+-			writeJSONFile("/etc/qmanager/custom_dns.json", map[string]any{
++			writeJSONFile("/data/vosclean/qm/etc/custom_dns.json", map[string]any{
+ 				"mode":    mode,
+ 				"preset":  preset,
+ 				"nic":     nic,
+@@ -822,6 +823,12 @@ func (s *Server) HandleDNS(w http.ResponseWriter, r *http.Request) {
+ 				"dns2v6":  dns2v6,
+ 				"enabled": enabled,
+ 			})
++			if err := applyCustomDNS(mode == "enabled", dns1, dns2, dns3); err != nil {
++				_ = json.NewEncoder(w).Encode(map[string]any{
++					"success": false, "error": "dns_apply_failed", "detail": err.Error(),
++				})
++				return
++			}
+ 		}
+ 	}
+ 
+@@ -1037,3 +1044,49 @@ func cleanModelString(val string) string {
+ 	}
+ 	return strings.TrimSpace(val)
+ }
++
++// updatesDisabled: the vosclean build is patched for the Compal RXM-G1; an
++// upstream self-update would replace it with an unpatched binary.
++func updatesDisabled(w http.ResponseWriter, r *http.Request) {
++	w.Header().Set("Content-Type", "application/json")
++	_ = json.NewEncoder(w).Encode(map[string]interface{}{
++		"success": false,
++		"error":   "updates_disabled",
++		"detail":  "Self-update is disabled in the vosclean build; updates are deployed by vosclean.",
++	})
++}
++
++// applyCustomDNS hands the chosen IPv4 resolvers to vosclean, which redirects
++// the modem's upstream DNS queries (dnsmasq, used by every DHCP client) to them
++// with iptables nat OUTPUT DNAT. Only literal IPv4 addresses are accepted so
++// nothing user-supplied reaches the shell config unvalidated.
++func applyCustomDNS(enabled bool, servers ...string) error {
++	var list []string
++	for _, sv := range servers {
++		sv = strings.TrimSpace(sv)
++		if sv == "" {
++			continue
++		}
++		ip := net.ParseIP(sv)
++		if ip == nil || ip.To4() == nil {
++			return fmt.Errorf("not an IPv4 address: %q", sv)
++		}
++		list = append(list, ip.To4().String())
++	}
++	if enabled && len(list) == 0 {
++		return fmt.Errorf("no DNS servers given")
++	}
++	flag := "no"
++	if enabled {
++		flag = "yes"
++	}
++	conf := fmt.Sprintf("# written by QManager - applied by: vosclean dns\nDNS_ENABLE=%s\nDNS_SERVERS=\"%s\"\n", flag, strings.Join(list, " "))
++	if err := os.WriteFile("/data/vosclean/etc/dns.conf", []byte(conf), 0644); err != nil {
++		return err
++	}
++	out, err := exec.Command("/data/vosclean/bin/vosclean", "dns").CombinedOutput()
++	if err != nil {
++		return fmt.Errorf("vosclean dns: %v: %s", err, strings.TrimSpace(string(out)))
++	}
++	return nil
++}
+diff --git a/backend/pkg/api/health_lang.go b/backend/pkg/api/health_lang.go
+index dca5f3f6..f3cd058e 100644
+--- a/backend/pkg/api/health_lang.go
++++ b/backend/pkg/api/health_lang.go
+@@ -73,7 +73,7 @@ func (s *Server) HandleLanguagePacksList(w http.ResponseWriter, r *http.Request)
+ 	}
+ 	installed := []map[string]string{{"code": "en", "name": "English"}}
+ 
+-	if data, err := os.ReadFile("/usrdata/qmanager/web/locales/en/common.json"); err == nil && len(data) > 0 {
++	if data, err := os.ReadFile("/data/vosclean/qm/web/locales/en/common.json"); err == nil && len(data) > 0 {
+ 		_ = data
+ 	}
+ 
+diff --git a/backend/pkg/api/missing_endpoints.go b/backend/pkg/api/missing_endpoints.go
+index 93540f4f..bf6fc119 100644
+--- a/backend/pkg/api/missing_endpoints.go
++++ b/backend/pkg/api/missing_endpoints.go
+@@ -32,7 +32,7 @@ import (
+ // Config backup: collect / apply / apply_status / apply_cancel
+ // -----------------------------------------------------------------------------
+ 
+-const configBackupDir = "/etc/qmanager"
++const configBackupDir = "/data/vosclean/qm/etc"
+ 
+ // qmConfigSectionFile maps a backup section key to the /etc/qmanager file that
+ // backs it. Only files here are ever written by apply.sh — the safe subset.
+@@ -295,8 +295,8 @@ func (s *Server) HandleConfigBackupApplyCancel(w http.ResponseWriter, r *http.Re
+ // Connection scenarios: activate / save / delete (list.sh already exists)
+ // -----------------------------------------------------------------------------
+ 
+-const scenariosCustomFile = "/etc/qmanager/scenarios_custom.json"
+-const activeScenarioFile = "/etc/qmanager/active_scenario"
++const scenariosCustomFile = "/data/vosclean/qm/etc/scenarios_custom.json"
++const activeScenarioFile = "/data/vosclean/qm/etc/active_scenario"
+ 
+ // loadCustomScenarios reads custom scenario definitions (additive to the
+ // built-in defaults served by HandleScenariosList).
+@@ -624,7 +624,7 @@ func (s *Server) HandleScenarioDelete(w http.ResponseWriter, r *http.Request) {
+ // Language packs: install_status / install_cancel / remove
+ // -----------------------------------------------------------------------------
+ 
+-const localesDir = "/usrdata/qmanager/web/locales"
++const localesDir = "/data/vosclean/qm/web/locales"
+ 
+ // HandleLanguagePacksInstallStatus reports the (synchronous) install job state
+ // using the shape the frontend LanguagePackInstallState expects: {state, code,
+@@ -759,7 +759,7 @@ func (s *Server) HandleProfilesApplyStatus(w http.ResponseWriter, r *http.Reques
+ func (s *Server) HandleTowerFailoverStatus(w http.ResponseWriter, r *http.Request) {
+ 	w.Header().Set("Content-Type", "application/json")
+ 
+-	failoverEnabled := fileExists("/etc/qmanager/tower_failover.enabled") || fileExistsAndEquals("/etc/qmanager/tower_failover_enabled", "1")
++	failoverEnabled := fileExists("/data/vosclean/qm/etc/tower_failover.enabled") || fileExistsAndEquals("/data/vosclean/qm/etc/tower_failover_enabled", "1")
+ 	failoverActivated := fileExists("/tmp/qmanager_tower_failover")
+ 	watcherRunning := fileExists("/tmp/qmanager_tower_failover.pid")
+ 
+diff --git a/backend/pkg/api/monitoring.go b/backend/pkg/api/monitoring.go
+index 38af2c56..5adb19cc 100644
+--- a/backend/pkg/api/monitoring.go
++++ b/backend/pkg/api/monitoring.go
+@@ -10,10 +10,10 @@ import (
+ )
+ 
+ const (
+-	smsConfigPath     = "/etc/qmanager/sms_alerts.json"
+-	emailConfigPath   = "/etc/qmanager/email_alerts.json"
+-	discordConfigPath = "/etc/qmanager/discord_bot.json"
+-	routingConfigPath = "/etc/qmanager/alert_routing.json"
++	smsConfigPath     = "/data/vosclean/qm/etc/sms_alerts.json"
++	emailConfigPath   = "/data/vosclean/qm/etc/email_alerts.json"
++	discordConfigPath = "/data/vosclean/qm/etc/discord_bot.json"
++	routingConfigPath = "/data/vosclean/qm/etc/alert_routing.json"
+ 	alertLogPath      = "/tmp/qmanager_alert_log.json"
+ )
+ 
+@@ -110,7 +110,7 @@ func (s *Server) alertsGet(w http.ResponseWriter) {
+ 
+ func readRebootHistory() []map[string]any {
+ 	out := []map[string]any{}
+-	if data, err := os.ReadFile("/etc/qmanager/crash.log"); err == nil {
++	if data, err := os.ReadFile("/data/vosclean/qm/etc/crash.log"); err == nil {
+ 		for _, line := range strings.Split(string(data), "\n") {
+ 			line = strings.TrimSpace(line)
+ 			if line == "" {
+@@ -219,7 +219,7 @@ func writeJSONFile(path string, data map[string]any) {
+ 	if err != nil {
+ 		return
+ 	}
+-	_ = os.MkdirAll("/etc/qmanager", 0755)
++	_ = os.MkdirAll("/data/vosclean/qm/etc", 0755)
+ 	_ = os.WriteFile(path, b, 0600)
+ }
+ 
+diff --git a/backend/pkg/api/profiles.go b/backend/pkg/api/profiles.go
+index c5831a77..e6eea03e 100644
+--- a/backend/pkg/api/profiles.go
++++ b/backend/pkg/api/profiles.go
+@@ -62,8 +62,8 @@ type ProfileSummaryItem struct {
+ 	Scenario  ScenarioBinding `json:"scenario"`
+ }
+ 
+-const profilesDir = "/etc/qmanager/profiles"
+-const activeProfileFile = "/etc/qmanager/active_profile"
++const profilesDir = "/data/vosclean/qm/etc/profiles"
++const activeProfileFile = "/data/vosclean/qm/etc/active_profile"
+ 
+ // Default profile instance for fallbacks
+ var defaultProfile = SimProfile{
+@@ -285,7 +285,7 @@ func (s *Server) HandleProfilesApply(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 
+ 	// Persist active profile marker
+-	_ = os.MkdirAll("/etc/qmanager", 0755)
++	_ = os.MkdirAll("/data/vosclean/qm/etc", 0755)
+ 	if err := os.WriteFile(activeProfileFile, []byte(req.ID), 0644); err != nil {
+ 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "write_failed"})
+ 		return
+diff --git a/backend/pkg/api/radio_details.go b/backend/pkg/api/radio_details.go
+index 0b66ac66..f6184407 100644
+--- a/backend/pkg/api/radio_details.go
++++ b/backend/pkg/api/radio_details.go
+@@ -67,15 +67,15 @@ func (s *Server) HandleRadioDetails(w http.ResponseWriter, r *http.Request) {
+ 						wanIpv4 = ipCandidate
+ 					}
+ 				}
+-				if len(parts) >= 7 {
+-					dnsField := strings.TrimSpace(parts[6])
++				if len(parts) >= 6 {
++					dnsField := strings.Trim(strings.TrimSpace(parts[5]), `"`)
+ 					dnsParts := strings.Fields(dnsField)
+ 					if len(dnsParts) > 0 && primaryDns == "" {
+ 						primaryDns = dnsParts[0]
+ 					}
+ 				}
+-				if len(parts) >= 8 {
+-					dnsSecField := strings.TrimSpace(parts[7])
++				if len(parts) >= 7 {
++					dnsSecField := strings.Trim(strings.TrimSpace(parts[6]), `"`)
+ 					dnsSecParts := strings.Fields(dnsSecField)
+ 					if len(dnsSecParts) > 0 && secondaryDns == "" {
+ 						secondaryDns = dnsSecParts[0]
+diff --git a/backend/pkg/api/settings.go b/backend/pkg/api/settings.go
+index 42895083..3bae9fc7 100644
+--- a/backend/pkg/api/settings.go
++++ b/backend/pkg/api/settings.go
+@@ -117,7 +117,7 @@ func (s *Server) HandleIMEISettings(w http.ResponseWriter, r *http.Request) {
+ 
+ 		backupEnabled := false
+ 		backupImeiStr := ""
+-		if data, err := os.ReadFile("/etc/qmanager/imei_backup.json"); err == nil {
++		if data, err := os.ReadFile("/data/vosclean/qm/etc/imei_backup.json"); err == nil {
+ 			var bData struct {
+ 				Enabled bool   `json:"enabled"`
+ 				IMEI    string `json:"imei"`
+@@ -160,8 +160,8 @@ func (s *Server) HandleIMEISettings(w http.ResponseWriter, r *http.Request) {
+ 				"imei":    req.BackupIMEI,
+ 			}
+ 			if bytes, err := json.Marshal(bData); err == nil {
+-				_ = os.MkdirAll("/etc/qmanager", 0755)
+-				_ = os.WriteFile("/etc/qmanager/imei_backup.json", bytes, 0644)
++				_ = os.MkdirAll("/data/vosclean/qm/etc", 0755)
++				_ = os.WriteFile("/data/vosclean/qm/etc/imei_backup.json", bytes, 0644)
+ 			}
+ 			_ = json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+ 			return
+diff --git a/backend/pkg/api/sms.go b/backend/pkg/api/sms.go
+index 17b87c69..27100936 100644
+--- a/backend/pkg/api/sms.go
++++ b/backend/pkg/api/sms.go
+@@ -55,7 +55,7 @@ func (s *Server) HandleSMS(w http.ResponseWriter, r *http.Request) {
+ }
+ 
+ func smsToolBin() string {
+-	for _, p := range []string{"/usr/bin/sms_tool", "/opt/sbin/sms_tool", "/usr/sbin/sms_tool"} {
++	for _, p := range []string{"/data/vosclean/qm/bin/sms_tool", "/usr/bin/sms_tool", "/opt/sbin/sms_tool", "/usr/sbin/sms_tool"} {
+ 		if _, err := exec.LookPath(p); err == nil {
+ 			return p
+ 		}
+diff --git a/backend/pkg/api/tower.go b/backend/pkg/api/tower.go
+index f9ff9302..e26630da 100644
+--- a/backend/pkg/api/tower.go
++++ b/backend/pkg/api/tower.go
+@@ -222,7 +222,7 @@ func (s *Server) HandleTowerStatus(w http.ResponseWriter, r *http.Request) {
+ 	lteLocked := strings.Contains(rawLte, "1") && !strings.Contains(rawLte, "ERROR")
+ 	nrLocked := strings.Contains(rawNr, "1") && !strings.Contains(rawNr, "ERROR")
+ 
+-	failoverEnabled := checkFileExistsAndEquals("/etc/qmanager/tower_failover_enabled", "1")
++	failoverEnabled := checkFileExistsAndEquals("/data/vosclean/qm/etc/tower_failover_enabled", "1")
+ 	failoverActivated := fileExists("/tmp/qmanager_tower_failover")
+ 	watcherRunning := fileExists("/tmp/qmanager_tower_failover.pid")
+ 
+diff --git a/backend/pkg/api/watchdog.go b/backend/pkg/api/watchdog.go
+index 46842bc2..99f1a6f3 100644
+--- a/backend/pkg/api/watchdog.go
++++ b/backend/pkg/api/watchdog.go
+@@ -21,10 +21,10 @@ import (
+ // ---------------------------------------------------------------------------
+ 
+ const (
+-	qmConfigFile   = "/etc/qmanager/qmanager.conf"
++	qmConfigFile   = "/data/vosclean/qm/etc/qmanager.conf"
+ 	qmWatchcatState = "/tmp/qmanager_watchcat.json"
+ 	qmSimSwapFlag  = "/tmp/qmanager_sim_swap_detected"
+-	qmSimFailover  = "/etc/qmanager/qmanager_sim_failover"
++	qmSimFailover  = "/data/vosclean/qm/etc/qmanager_sim_failover"
+ 	qmReloadFlag   = "/tmp/qmanager_watchcat_reload"
+ 	qmDisabledFlag = "/tmp/qmanager_watchcat_disabled"
+ )
+@@ -149,7 +149,7 @@ func (s *Server) watchdogGet(w http.ResponseWriter) {
+ 	probeProfile := "relaxed"
+ 	var intervalOverride any
+ 	qualityThresholds := map[string]any(nil)
+-	if pp := qmReadJSONFile("/etc/qmanager/ping_profile.json"); len(pp) > 0 {
++	if pp := qmReadJSONFile("/data/vosclean/qm/etc/ping_profile.json"); len(pp) > 0 {
+ 		if p, ok := pp["profile"].(string); ok && p != "" {
+ 			probeProfile = p
+ 		}
+@@ -157,7 +157,7 @@ func (s *Server) watchdogGet(w http.ResponseWriter) {
+ 			intervalOverride = o
+ 		}
+ 	}
+-	if qt := qmReadJSONFile("/etc/qmanager/quality_thresholds.json"); len(qt) > 0 {
++	if qt := qmReadJSONFile("/data/vosclean/qm/etc/quality_thresholds.json"); len(qt) > 0 {
+ 		qualityThresholds = qt
+ 	}
+ 
+diff --git a/backend/pkg/api/zz_vosclean_scan_test.go b/backend/pkg/api/zz_vosclean_scan_test.go
+new file mode 100644
+index 00000000..b023190d
+--- /dev/null
++++ b/backend/pkg/api/zz_vosclean_scan_test.go
+@@ -0,0 +1,34 @@
++package api
++
++import (
++	"encoding/json"
++	"os"
++	"net/http/httptest"
++	"testing"
++)
++
++func TestCellScanStatusShape(t *testing.T) {
++	fixture := "+QSCAN: \"NR5G\",234,10,648768,101,-80,-11,40,30,1A2B3C4D5,3039,-,78\n+QSCAN: \"LTE\",234,10,347,201,-88,-14,-,-,1234567,1F4,-,1\n+QSCAN: \"LTE\",234,10,3725,202,-99,-13,-,-,-,-,-,8\n\nOK"
++	if err := os.WriteFile("/tmp/qmanager_scan_results.txt", []byte(fixture), 0644); err != nil {
++		t.Skip("cannot write fixture")
++	}
++	defer os.Remove("/tmp/qmanager_scan_results.txt")
++	s := &Server{}
++	rec := httptest.NewRecorder()
++	s.HandleCellScanStatus(rec, httptest.NewRequest("GET", "/x", nil))
++	var out struct {
++		Status  string           `json:"status"`
++		Results []map[string]any `json:"results"`
++	}
++	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
++		t.Fatal(err)
++	}
++	t.Logf("%s", rec.Body.String())
++	if out.Status != "complete" || len(out.Results) != 3 {
++		t.Fatalf("status=%s n=%d", out.Status, len(out.Results))
++	}
++	nr := out.Results[0]
++	if nr["networkType"] != "NR5G" || nr["earfcn"].(float64) != 648768 || nr["signalStrength"].(float64) != -80 || nr["provider"] != "O2 UK" || nr["band"].(float64) != 78 || nr["tac"].(float64) != 12345 {
++		t.Fatalf("nr row %v", nr)
++	}
++}
+diff --git a/backend/pkg/at/client.go b/backend/pkg/at/client.go
+index 449c5728..87437056 100644
+--- a/backend/pkg/at/client.go
++++ b/backend/pkg/at/client.go
+@@ -1,7 +1,6 @@
+ package at
+ 
+ import (
+-	"bytes"
+ 	"fmt"
+ 	"os"
+ 	"os/exec"
+@@ -79,108 +78,26 @@ func (c *Client) Exec(cmd string) (string, error) {
+ 		}
+ 	}
+ 
+-	// Mock / Development fallback
+-	return c.execMock(cmd)
++	if runtime.GOOS != "linux" {
++		return c.execMock(cmd) // development builds only
++	}
++	return "ERROR", fmt.Errorf("modem not reachable")
+ }
+ 
+ func (c *Client) execOnModem(cmd string) (string, error) {
+-	// 0. Prefer qcmd — the QManager AT gatekeeper that uses flock to
+-	// serialize access to /dev/smd11. On this platform the shell daemons
+-	// (qmanager_poller, qmanager_watchcat) also go through qcmd, so using it
+-	// here guarantees we never collide with them on the serial port.
+-	if _, err := exec.LookPath("qcmd"); err == nil {
+-		// qcmd accepts the AT command directly as an argument (one process).
+-		// The legacy `echo ... | qcmd` pipe spawned sh + qcmd (two processes),
+-		// doubling subprocess churn — significant on a 1-core modem where the
+-		// Go poller fires ~21 AT calls per cycle.
+-		subCmd := exec.Command("qcmd", cmd)
+-		out, err := subCmd.Output()
+-		if err == nil {
+-			res := strings.TrimSpace(string(out))
+-			if res != "" {
+-				return res, nil
+-			}
+-		}
+-	}
+-
+-	// 1. Try atcli_smd11 directly (Quectel SMD AT client binary)
+-	if _, err := exec.LookPath("/usr/bin/atcli_smd11"); err == nil {
+-		out, err := exec.Command("/usr/bin/atcli_smd11", cmd).Output()
+-		if err == nil {
+-			res := strings.TrimSpace(string(out))
+-			if res != "" {
+-				return res, nil
+-			}
+-		}
+-	} else if _, err := exec.LookPath("atcli_smd11"); err == nil {
+-		out, err := exec.Command("atcli_smd11", cmd).Output()
+-		if err == nil {
+-			res := strings.TrimSpace(string(out))
+-			if res != "" {
+-				return res, nil
+-			}
+-		}
+-	}
+-
+-	// 2. Try piping command to qcmd via stdin
+-	if _, err := exec.LookPath("qcmd"); err == nil {
+-		subCmd := exec.Command("qcmd", cmd)
+-		out, err := subCmd.Output()
+-		if err == nil {
+-			res := strings.TrimSpace(string(out))
+-			if res != "" {
+-				return res, nil
+-			}
+-		}
+-	}
+-
+-	// Dynamic re-check if port was plugged in post-launch
+-	if _, err := os.Stat(c.devicePath); err != nil {
+-		c.devicePath = detectATDevice(c.devicePath)
+-	}
+-
+-	// Direct device check
+-	if _, err := os.Stat(c.devicePath); err != nil {
+-		return "", fmt.Errorf("AT device path %s does not exist: %w", c.devicePath, err)
+-	}
+-
+-	f, err := os.OpenFile(c.devicePath, os.O_RDWR, 0)
++	// vosclean build: the Compal RXM-G1 is driven only through qcmd (Quectel-AT
++	// compatibility layer). No raw serial writes, no mock data.
++	bin, err := exec.LookPath("qcmd")
+ 	if err != nil {
+-		return "", fmt.Errorf("failed to open AT device %s: %w", c.devicePath, err)
++		return "", fmt.Errorf("qcmd not found: %w", err)
+ 	}
+-	defer f.Close()
+-
+-	// Send AT command
+-	if !strings.HasSuffix(cmd, "\r\n") {
+-		cmd = cmd + "\r\n"
+-	}
+-	if _, err := f.WriteString(cmd); err != nil {
+-		return "", fmt.Errorf("failed to write to AT device: %w", err)
+-	}
+-
+-	// Read response buffer with timeout
+-	buf := make([]byte, 1024)
+-	var response bytes.Buffer
+-	deadline := time.Now().Add(c.timeout)
+-
+-	for time.Now().Before(deadline) {
+-		_ = f.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+-		n, err := f.Read(buf)
+-		if n > 0 {
+-			response.Write(buf[:n])
+-			resStr := response.String()
+-			if strings.Contains(resStr, "OK\r\n") || strings.Contains(resStr, "ERROR\r\n") {
+-				break
+-			}
+-		}
+-		if err != nil && !os.IsTimeout(err) {
+-			break
+-		}
+-	}
+-
+-	res := strings.TrimSpace(response.String())
++	out, err := exec.Command(bin, cmd).Output()
++	res := strings.TrimSpace(string(out))
+ 	if res == "" {
+-		return "", fmt.Errorf("no response from AT device %s", c.devicePath)
++		if err == nil {
++			err = fmt.Errorf("empty response")
++		}
++		return "", err
+ 	}
+ 	return res, nil
+ }
+diff --git a/backend/pkg/at/client_test.go b/backend/pkg/at/client_test.go
+index d3cabff9..1d531721 100644
+--- a/backend/pkg/at/client_test.go
++++ b/backend/pkg/at/client_test.go
+@@ -4,12 +4,13 @@ import (
+ 	"testing"
+ )
+ 
++// vosclean build: without qcmd the client must fail loudly, never return mock data.
+ func TestClient(t *testing.T) {
+ 	client := NewClient("/dev/null")
+ 
+ 	resp, err := client.Exec("ATI")
+-	if err != nil || resp == "" {
+-		t.Errorf("expected ATI mock fallback, got %q (err: %v)", resp, err)
++	if err == nil || resp != "ERROR" {
++		t.Errorf("expected ERROR without qcmd, got %q (err: %v)", resp, err)
+ 	}
+ 
+ 	_, errInv := client.Exec("INVALID")
+diff --git a/backend/pkg/daemon/poller.go b/backend/pkg/daemon/poller.go
+index 8c53712e..b0c14d71 100644
+--- a/backend/pkg/daemon/poller.go
++++ b/backend/pkg/daemon/poller.go
+@@ -166,15 +166,15 @@ func (p *Poller) pollOnce() {
+ 				if len(parts) >= 3 && apn == "" {
+ 					apn = strings.Trim(strings.TrimSpace(parts[2]), `"`)
+ 				}
+-				if len(parts) >= 7 {
+-					dnsField := strings.TrimSpace(parts[6])
++				if len(parts) >= 6 {
++					dnsField := strings.Trim(strings.TrimSpace(parts[5]), `"`)
+ 					dnsParts := strings.Fields(dnsField)
+ 					if len(dnsParts) > 0 && primaryDns == "" {
+ 						primaryDns = dnsParts[0]
+ 					}
+ 				}
+-				if len(parts) >= 8 {
+-					dnsSecField := strings.TrimSpace(parts[7])
++				if len(parts) >= 7 {
++					dnsSecField := strings.Trim(strings.TrimSpace(parts[6]), `"`)
+ 					dnsSecParts := strings.Fields(dnsSecField)
+ 					if len(dnsSecParts) > 0 && secondaryDns == "" {
+ 						secondaryDns = dnsSecParts[0]
+@@ -359,28 +359,8 @@ func (p *Poller) pollOnce() {
+ 		"errors":               []string{},
+ 		"signal_per_antenna":   signalPerAntenna,
+ 		"network":         buildNetworkMap(netType, carrier, serviceStatus, wanIp, apn, primaryDns, secondaryDns, simSlot, p),
+-		"lte": map[string]interface{}{
+-			"state":     lteState,
+-			"band":      lteBand,
+-			"earfcn":    earfcn,
+-			"bandwidth": bandwidth,
+-			"pci":       pci,
+-			"cell_id":   cellId,
+-			"tac":       tac,
+-			"rsrp":      rsrp,
+-			"rsrq":      rsrq,
+-			"sinr":      sinr,
+-			"rssi":      rssi,
+-		},
+-		"nr": map[string]interface{}{
+-			"state": nrState,
+-			"band":  nrBand,
+-			"arfcn": nrArfcn,
+-			"pci":   nrPci,
+-			"rsrp":  nrRsrp,
+-			"rsrq":  nrRsrq,
+-			"sinr":  nrSinr,
+-		},
++		"lte": lteCellMap(lteState, lteBand, earfcn, bandwidth, pci, cellId, tac, rsrp, rsrq, sinr, rssi, netType),
++		"nr": nrCellMap(nrState, nrBand, nrArfcn, nrPci, nrRsrp, nrRsrq, nrSinr, cellId, tac, netType),
+ 		"device": map[string]interface{}{
+ 			"poller_tier":              "active",
+ 			"temperature":              temp,
+@@ -399,19 +379,14 @@ func (p *Poller) pollOnce() {
+ 			"phone_number":             phoneNumber,
+ 			"build_date":               buildDate,
+ 			"qmanager_version":         readQManagerVersion(),
+-			"lte_category":             "Cat-20",
++			"lte_category":             "",
+ 			"mimo":                     "4x4",
+-			"supported_lte_bands":      "1:3:5:7:8:20:28:38:40:41:42:43",
+-			"supported_nsa_nr5g_bands": "1:3:5:7:8:20:28:38:40:41:77:78:79",
+-			"supported_sa_nr5g_bands":  "1:3:5:7:8:20:28:38:40:41:77:78:79",
+-			"supported_nrdc_nr5g_bands": "41:77:78:79",
+-		},
+-		"connectivity": map[string]interface{}{
+-			"online":             true,
+-			"latency_ms":         15,
+-			"packet_loss_pct":    0,
+-			"last_success_epoch": now,
++			"supported_lte_bands":      p.capBands("lte_band"),
++			"supported_nsa_nr5g_bands": p.capBands("nsa_nr5g_band"),
++			"supported_sa_nr5g_bands":  p.capBands("nr5g_band"),
++			"supported_nrdc_nr5g_bands": "",
+ 		},
++		"connectivity": lastPingConnectivity(now, wanIp),
+ 	}
+ 
+ 	data, err := json.MarshalIndent(status, "", "  ")
+@@ -743,25 +718,32 @@ func parseQuectelQENG(resp string, netType, serviceStatus, carrier, lteBand *str
+ 
+ 			if rat == "NR5G-SA" {
+ 				*netType = "NR5G-SA"
+-				if len(parts) >= 14 {
+-					if val, err := strconv.Atoi(parts[7]); err == nil {
+-						*nrArfcn = &val
++				// Quectel: "servingcell",<state>,"NR5G-SA",<duplex>,<MCC>,<MNC>,<cellID>,<PCID>,<TAC>,<ARFCN>,<band>,<NR_DL_bw>,<RSRP>,<RSRQ>,<SINR>,<scs>,<srxlev>
++				if len(parts) >= 15 {
++					if hexVal, err := strconv.ParseInt(strings.Trim(parts[6], `"`), 16, 64); err == nil && hexVal > 0 {
++						v := int(hexVal)
++						*cellId = &v
+ 					}
+-					if val, err := strconv.Atoi(parts[8]); err == nil {
++					if val, err := strconv.Atoi(parts[7]); err == nil {
+ 						*nrPci = &val
+ 					}
+-					if bandNum, err := strconv.Atoi(parts[9]); err == nil {
++					if hexVal, err := strconv.ParseInt(strings.Trim(parts[8], `"`), 16, 64); err == nil && hexVal > 0 {
++						v := int(hexVal)
++						*tac = &v
++					}
++					if val, err := strconv.Atoi(parts[9]); err == nil {
++						*nrArfcn = &val
++					}
++					if bandNum, err := strconv.Atoi(parts[10]); err == nil {
+ 						*nrBand = fmt.Sprintf("N%d", bandNum)
+-					} else {
+-						*nrBand = strings.Trim(parts[9], `"`)
+ 					}
+-					if val, err := strconv.Atoi(parts[11]); err == nil {
++					if val, err := strconv.Atoi(parts[12]); err == nil {
+ 						*nrRsrp = &val
+ 					}
+-					if val, err := strconv.Atoi(parts[12]); err == nil {
++					if val, err := strconv.Atoi(parts[13]); err == nil {
+ 						*nrRsrq = &val
+ 					}
+-					if val, err := strconv.Atoi(parts[13]); err == nil {
++					if val, err := strconv.Atoi(parts[14]); err == nil {
+ 						*nrSinr = &val
+ 					}
+ 				}
+@@ -770,36 +752,40 @@ func parseQuectelQENG(resp string, netType, serviceStatus, carrier, lteBand *str
+ 				// Format INLINE (firmware lain): +QENG: "servingcell","CONNECTED","LTE","FDD",
+ 				// <cell>,<tac>,<pci>,<earfcn>,<band>,<ul_bw>,<dl_bw>,<rsrp>,<rsrq>,<rssi>,<sinr>
+ 				// Index: [4]cell [5]tac [6]pci [7]earfcn [8]band [9]ul [10]dl [11]rsrp [12]rsrq [13]rssi [14]sinr
+-				if len(parts) >= 15 {
+-					if hexVal, err := strconv.ParseInt(strings.Trim(parts[4], `"`), 16, 64); err == nil && hexVal > 0 {
++				// Quectel: "servingcell",<state>,"LTE",<is_tdd>,<MCC>,<MNC>,<cellID>,<PCID>,<earfcn>,<band>,<UL_bw>,<DL_bw>,<TAC>,<RSRP>,<RSRQ>,<RSSI>,<SINR>,...
++				if len(parts) >= 17 {
++					if hexVal, err := strconv.ParseInt(strings.Trim(parts[6], `"`), 16, 64); err == nil && hexVal > 0 {
+ 						v := int(hexVal)
+ 						*cellId = &v
+ 					}
+-					if val, err := strconv.Atoi(parts[6]); err == nil {
++					if val, err := strconv.Atoi(parts[7]); err == nil {
+ 						*pci = &val
+ 					}
+-					if val, err := strconv.Atoi(parts[7]); err == nil {
++					if val, err := strconv.Atoi(parts[8]); err == nil {
+ 						*earfcn = &val
+ 					}
+-					if bandNum, err := strconv.Atoi(parts[8]); err == nil {
++					if bandNum, err := strconv.Atoi(parts[9]); err == nil {
+ 						*lteBand = fmt.Sprintf("B%d", bandNum)
+-					} else {
+-						*lteBand = strings.Trim(parts[8], `"`)
+ 					}
+-					if hexVal, err := strconv.ParseInt(strings.Trim(parts[5], `"`), 16, 64); err == nil && hexVal > 0 {
++					if bwCode, err := strconv.Atoi(parts[11]); err == nil {
++						if bw := map[int]int{0: 1, 1: 3, 2: 5, 3: 10, 4: 15, 5: 20}[bwCode]; bw > 0 {
++							*bandwidth = &bw
++						}
++					}
++					if hexVal, err := strconv.ParseInt(strings.Trim(parts[12], `"`), 16, 64); err == nil && hexVal > 0 {
+ 						v := int(hexVal)
+ 						*tac = &v
+ 					}
+-					if val, err := strconv.Atoi(parts[11]); err == nil {
++					if val, err := strconv.Atoi(parts[13]); err == nil {
+ 						*rsrp = &val
+ 					}
+-					if val, err := strconv.Atoi(parts[12]); err == nil {
++					if val, err := strconv.Atoi(parts[14]); err == nil {
+ 						*rsrq = &val
+ 					}
+-					if val, err := strconv.Atoi(parts[13]); err == nil {
++					if val, err := strconv.Atoi(parts[15]); err == nil {
+ 						*rssi = &val
+ 					}
+-					if val, err := strconv.Atoi(parts[14]); err == nil {
++					if val, err := strconv.Atoi(parts[16]); err == nil {
+ 						*sinr = &val
+ 					}
+ 				}
+@@ -892,7 +878,7 @@ func parseQuectelQENG(resp string, netType, serviceStatus, carrier, lteBand *str
+ // readLoadAvg returns the 1/5/15-minute load averages from /proc/loadavg as
+ // a string like "2.33 2.38 2.45", or "" if unreadable.
+ // qmanagerVersionFile is written by the installer; fallback keeps a sane default.
+-const qmanagerVersionFile = "/etc/qmanager/VERSION"
++const qmanagerVersionFile = "/data/vosclean/qm/etc/VERSION"
+ 
+ var qmanagerVersionFallback = "v1.5.6"
+ 
+@@ -955,6 +941,11 @@ func (p *Poller) collectCarrierComponents() []map[string]any {
+ 		}
+ 		if v, e := strconv.Atoi(strings.TrimSpace(parts[2])); e == nil && tech == "LTE" {
+ 			cc["bandwidth_mhz"] = v / 5 // QCAINFO bandwidth = MHz*5
++		} else if e == nil && tech == "NR" {
++			nrBw := []int{5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100, 200, 400}
++			if v >= 0 && v < len(nrBw) {
++				cc["bandwidth_mhz"] = nrBw[v]
++			}
+ 		}
+ 
+ 		if tech == "LTE" {
+@@ -1023,6 +1014,32 @@ func buildNetworkMap(netType, carrier, serviceStatus, wanIp, apn, primaryDns, se
+ 		m["ca_count"] = len(components) - 1
+ 	}
+ 	m["carrier_components"] = components
++	// vosclean: fields the cellular-information page reads
++	m["primary_dns_v4"] = primaryDns
++	m["secondary_dns_v4"] = secondaryDns
++	total, nrCount, lteCount := 0, 0, 0
++	var parts []string
++	for _, c := range components {
++		bw, _ := c["bandwidth_mhz"].(int)
++		total += bw
++		if c["technology"] == "NR" {
++			nrCount++
++		} else {
++			lteCount++
++		}
++		if bw > 0 {
++			parts = append(parts, fmt.Sprintf("%v %d MHz", c["band"], bw))
++		}
++	}
++	if total > 0 {
++		m["total_bandwidth_mhz"] = total
++		m["bandwidth_details"] = strings.Join(parts, " + ")
++	}
++	m["ca_active"] = lteCount >= 2 || (lteCount >= 1 && nrCount >= 1 && netType != "5G-SA")
++	m["nr_ca_active"] = nrCount >= 2
++	if nrCount > 0 {
++		m["nr_ca_count"] = nrCount - 1
++	}
+ 	return m
+ }
+ 
+@@ -1243,3 +1260,93 @@ func isDigits(s string) bool {
+ 	}
+ 	return true
+ }
++
++// ---- vosclean additions ----
++
++var capCache = map[string]string{}
++
++// capBands reads the modem's real band capability once (via qcmd).
++func (p *Poller) capBands(key string) string {
++	if v, ok := capCache[key]; ok {
++		return v
++	}
++	resp, err := p.atClient.Exec(`AT+QNWPREFCFG="ue_capability_band"`)
++	if err != nil || strings.Contains(resp, "ERROR") {
++		return ""
++	}
++	for _, line := range strings.Split(resp, "\n") {
++		line = strings.TrimSpace(line)
++		for _, k := range []string{"lte_band", "nsa_nr5g_band", "nr5g_band"} {
++			if strings.HasPrefix(line, `+QNWPREFCFG: "`+k+`",`) {
++				capCache[k] = strings.TrimPrefix(line, `+QNWPREFCFG: "`+k+`",`)
++			}
++		}
++	}
++	return capCache[key]
++}
++
++// lastPingConnectivity reports the most recent watchdog ping instead of fixed values.
++func lastPingConnectivity(now int64, wanIp string) map[string]interface{} {
++	out := map[string]interface{}{
++		"online":             wanIp != "",
++		"latency_ms":         nil,
++		"packet_loss_pct":    nil,
++		"last_success_epoch": nil,
++	}
++	data, err := os.ReadFile("/tmp/qmanager_ping_history.json")
++	if err != nil {
++		return out
++	}
++	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
++	var lastOK int64
++	for i := len(lines) - 1; i >= 0; i-- {
++		var e struct {
++			Ts   int64    `json:"ts"`
++			Lat  *float64 `json:"lat"`
++			Loss int      `json:"loss"`
++		}
++		if json.Unmarshal([]byte(lines[i]), &e) != nil {
++			continue
++		}
++		if i == len(lines)-1 {
++			out["online"] = e.Loss < 100
++			out["packet_loss_pct"] = e.Loss
++			if e.Lat != nil {
++				out["latency_ms"] = int(*e.Lat + 0.5)
++			}
++		}
++		if e.Lat != nil && lastOK == 0 {
++			lastOK = e.Ts
++		}
++		if lastOK != 0 {
++			break
++		}
++	}
++	if lastOK != 0 {
++		out["last_success_epoch"] = lastOK
++	}
++	return out
++}
++
++func lteCellMap(state, band string, earfcn, bandwidth, pci, cellId, tac, rsrp, rsrq, sinr, rssi *int, netType string) map[string]interface{} {
++	m := map[string]interface{}{
++		"state": state, "band": band, "earfcn": earfcn, "bandwidth": bandwidth, "pci": pci,
++		"cell_id": nil, "tac": nil, "rsrp": rsrp, "rsrq": rsrq, "sinr": sinr, "rssi": rssi,
++	}
++	if netType != "5G-SA" && cellId != nil {
++		m["cell_id"], m["tac"] = cellId, tac
++		m["enodeb_id"] = *cellId >> 8 // 28-bit ECI = 20-bit eNB + 8-bit sector
++		m["sector_id"] = *cellId & 0xff
++	}
++	return m
++}
++
++func nrCellMap(state, band string, arfcn, pci, rsrp, rsrq, sinr, cellId, tac *int, netType string) map[string]interface{} {
++	m := map[string]interface{}{
++		"state": state, "band": band, "arfcn": arfcn, "pci": pci, "rsrp": rsrp, "rsrq": rsrq, "sinr": sinr,
++	}
++	if netType == "5G-SA" && cellId != nil {
++		m["cell_id"], m["tac"] = cellId, tac
++	}
++	return m
++}
+diff --git a/backend/pkg/modem/bands.go b/backend/pkg/modem/bands.go
+index ab289bb2..3cef4291 100644
+--- a/backend/pkg/modem/bands.go
++++ b/backend/pkg/modem/bands.go
+@@ -42,7 +42,7 @@ func (b *BandManager) GetCurrentBands() (*BandConfig, *FailoverStatus, error) {
+ 	}
+ 
+ 	failover := &FailoverStatus{
+-		Enabled:        fileExistsAndEquals("/etc/qmanager/band_failover_enabled", "1"),
++		Enabled:        fileExistsAndEquals("/data/vosclean/qm/etc/band_failover_enabled", "1"),
+ 		Activated:      fileExists("/tmp/qmanager_band_failover"),
+ 		WatcherRunning: fileExists("/tmp/qmanager_band_failover.pid"),
+ 	}
+diff --git a/backend/pkg/tlsgen/tlsgen.go b/backend/pkg/tlsgen/tlsgen.go
+index b6bb58db..7b88d05e 100644
+--- a/backend/pkg/tlsgen/tlsgen.go
++++ b/backend/pkg/tlsgen/tlsgen.go
+@@ -20,7 +20,7 @@ import (
+ // If missing, it generates a self-signed ECDSA P-256 certificate with local IP/DNS SANs.
+ func EnsureCertificates(certDir string) (certPath string, keyPath string, err error) {
+ 	if certDir == "" {
+-		certDir = "/etc/qmanager/tls"
++		certDir = "/data/vosclean/qm/etc/tls"
+ 	}
+ 
+ 	certPath = filepath.Join(certDir, "cert.pem")
