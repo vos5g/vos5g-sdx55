@@ -1,0 +1,14 @@
+# Options added on top of the stick's own kernel config (/proc/config.gz).
+# Only modules (=m) and two menu switches with no compiled effect.
+# Every option here was checked not to change shared kernel structures.
+CONFIG_NF_NAT_IPV6=m
+CONFIG_IP6_NF_NAT=m
+CONFIG_NF_NAT_MASQUERADE_IPV6=m
+CONFIG_IP6_NF_TARGET_MASQUERADE=m
+CONFIG_TCP_CONG_ADVANCED=y
+CONFIG_TCP_CONG_BBR=m
+CONFIG_NET_SCH_FQ=m
+CONFIG_NET_SCH_FQ_CODEL=m
+CONFIG_NETFILTER_XT_MATCH_OWNER=m
+CONFIG_NETFILTER_XT_MATCH_STRING=m
+CONFIG_NETFILTER_XT_MATCH_CONNBYTES=m
