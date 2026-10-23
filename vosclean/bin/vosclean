@@ -193,6 +193,7 @@ do_qm() {
 do_ts() { # Tailscale (installed from QManager's VPN page) - start on boot if enabled there
   T=$VC/tailscale
   [ -f $T/ENABLED_ON_BOOT ] && [ -x $T/bin/tailscaled ] || return 0
+  if wg_cgnat; then log "Tailscale not started: the active WireGuard config uses 100.64.0.0/10"; return 0; fi
   systemctl is-active --quiet tailscaled && return 0
   mkdir -p $T/state /var/run/tailscale; systemctl reset-failed tailscaled 2>/dev/null
   systemd-run --unit=tailscaled -p Restart=on-failure -p RestartSec=10 -p MemoryMax=90M --setenv=GOGC=200 --setenv=GOMEMLIMIT=60MiB --setenv=HOME=$T \
@@ -218,6 +219,7 @@ ts_fw() { # NAT + MSS clamping so devices behind the stick can use accepted Tail
 do_nb() { # NetBird (installed from QManager's VPN page) - start on boot if enabled there
   N=$VC/netbird
   [ -f $N/ENABLED_ON_BOOT ] && [ -x $N/bin/netbird ] || return 0
+  if [ -s $WG/ACTIVE ]; then log "NetBird not started: a WireGuard config is active"; return 0; fi
   systemctl is-active --quiet netbird && return 0
   mkdir -p $N/state /tmp/vosclean/log; systemctl reset-failed netbird 2>/dev/null
   systemd-run --unit=netbird -p Restart=on-failure -p RestartSec=10 -p MemoryMax=90M \
@@ -239,6 +241,38 @@ nb_fw() { # NAT + MSS clamping so devices behind the stick can use NetBird route
     for d in -o -i; do iptables -t mangle -D FORWARD $d wt0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null; done
   fi
   return 0
+}
+
+# --- WireGuard VPN client (configs and the connect switch are on QManager's WireGuard page) ---
+# The tunnel runs as its own unit (vos-wg) from the QManager binary, so restarting
+# QManager doesn't drop it. $WG/ACTIVE names the config to keep connected, at boot too.
+# The service sets up and repairs its own routes, NAT and firewall rules.
+WG=$VC/wireguard
+wg_start() { # wg_start [boot]: (re)start the tunnel for the active config
+  [ -x $VC/qm/bin/qmanager-core ] || { echo "QManager isn't installed"; return 1; }
+  if [ ! -s $WG/ACTIVE ]; then [ "$1" = boot ] && return 0; echo "no WireGuard config is active"; return 1; fi
+  systemctl stop vos-wg 2>/dev/null; systemctl reset-failed vos-wg 2>/dev/null
+  mkdir -p /tmp/vosclean/log
+  systemd-run --unit=vos-wg -p Restart=on-failure -p RestartSec=15 -p MemoryMax=48M \
+    --setenv=GOMEMLIMIT=32MiB --setenv=PATH=/usr/sbin:/usr/bin:/sbin:/bin \
+    $VC/qm/bin/qmanager-core wg-run >/dev/null 2>&1 || { log "WireGuard: couldn't start the tunnel service"; echo "systemd-run failed"; return 1; }
+  log "WireGuard: tunnel service started for $(head -c 40 $WG/ACTIVE)"
+}
+wg_stop() {
+  systemctl stop vos-wg 2>/dev/null; systemctl reset-failed vos-wg 2>/dev/null
+  [ -x $VC/qm/bin/qmanager-core ] && $VC/qm/bin/qmanager-core wg-cleanup >/dev/null 2>&1
+  log "WireGuard: tunnel service stopped"
+  return 0
+}
+do_wg() { systemctl is-active --quiet vos-wg && return 0; wg_start boot; }
+wg_cgnat() { # the active WireGuard config uses 100.64.0.0/10, Tailscale's and NetBird's range
+  [ -s $WG/ACTIVE ] || return 1
+  f="$WG/configs/$(head -n1 $WG/ACTIVE).conf"
+  [ -f "$f" ] && grep -iE '^[[:space:]]*(Address|DNS)[[:space:]]*=' "$f" | grep -qE '(^|[^0-9])100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.'
+}
+wg_status() {
+  if [ -s $WG/ACTIVE ]; then echo "wireguard: $(systemctl is-active vos-wg 2>/dev/null) (config $(head -c 40 $WG/ACTIVE))"
+  else echo "wireguard: off ($(ls $WG/configs/*.conf 2>/dev/null | wc -l) saved configs)"; fi
 }
 
 # --- modem crash handling ----------------------------------------------------------
@@ -326,6 +360,7 @@ status() {
   echo "netbird: $(systemctl is-active netbird 2>/dev/null) ($([ -x $VC/netbird/bin/netbird ] && echo installed || echo not installed), boot $([ -f $VC/netbird/ENABLED_ON_BOOT ] && echo on || echo off))"
   d=$(ssr_dev); [ -n "$d" ] && echo "modem crash handling: restart_level=$(cat $d/restart_level), crashes this boot: $(cat $d/crash_count)$([ -f $SSR_PENDING ] && echo ', waiting for data to return')"
   type modules_status >/dev/null 2>&1 && modules_status
+  wg_status
   echo "custom DNS: $(iptables -t nat -C OUTPUT -j VOS_DNS 2>/dev/null && echo "on ($(. $VC/etc/dns.conf; echo $DNS_SERVERS))" || echo "off (operator DNS)")"
 }
 
@@ -333,7 +368,7 @@ status() {
 [ -f $VC/bin/modules.sh ] && . $VC/bin/modules.sh
 
 case "$1" in
-  apply)   do_ssr; do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns; do_modules; do_ts; do_nb; conf_save_good ;;
+  apply)   do_ssr; do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns; do_modules; do_ts; do_nb; do_wg; conf_save_good ;;
   uipass)  ui_pass ;;
   ui)      do_ui ;;
   qm)      do_time; do_qm ;;
@@ -344,8 +379,9 @@ case "$1" in
   ssr)     do_ssr ;;
   modules) do_modules manual; conf_save_good; modules_status ;;
   modules-list) modules_list ;;
+  wg)      case "$2" in start) wg_start ;; stop) wg_stop ;; *) wg_status ;; esac ;;
   status)  status ;;
   fw)      do_fw ;;
   stop-fw) stop_fw ;;
-  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw|ssr|modules|modules-list}"; exit 1 ;;
+  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw|ssr|modules|modules-list|wg [start|stop]}"; exit 1 ;;
 esac
