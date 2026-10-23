@@ -6,7 +6,7 @@
    * `cricli`, Compal's radio CLI;
    * `atcli`, Compal's AT commands (`AT+BINFO`, `AT+BNRINFO`, `AT+LCAINFO`, `AT+NRCAINFO`, `AT+BCONFIG?`, …);
    * **QMI over QRTR**, through raw `AF_QIPCRTR` sockets with no libqmi (NAS *Get Cell Location Info*), for the neighbour-cell scan.
-2. **[qmanager-vos](https://github.com/thalatamsainath/qmanager-vos)**, a fork of QManager-GO with the VOS changes as separate commits on top of upstream (below).
+2. **[qmanager-vos](https://github.com/vos5g/qmanager-vos)**, a fork of QManager-GO with the VOS changes as separate commits on top of upstream (below).
 
 ## How `qcmd` behaves
 
@@ -52,8 +52,8 @@
 
 ## Feature matrix on this module
 
-The up-to-date list of what works, and of what is hidden and why, is in the [qmanager-vos README](https://github.com/thalatamsainath/qmanager-vos#what-works).
+The up-to-date list of what works, and of what is hidden and why, is in the [qmanager-vos README](https://github.com/vos5g/qmanager-vos#what-works).
 
 ## Building
 
-QManager is built in [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos#building) (Node 20+ or Bun, Go 1.24+); its CI attaches `qmanager-core-armv7` to each release. `qcmd` is built here with `./qcmd/build.sh`.
+QManager is built in [qmanager-vos](https://github.com/vos5g/qmanager-vos#building) (Node 20+ or Bun, Go 1.24+); its CI attaches `qmanager-core-armv7` to each release. `qcmd` is built here with `./qcmd/build.sh`.

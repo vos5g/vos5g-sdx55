@@ -84,7 +84,7 @@ IPv6 parts of a config (IPv6 addresses, `::/0`) are ignored, because the mobile 
 
 ## Extra kernel modules
 
-The stick's kernel (4.14.117-perf) loads unsigned modules, so features it was built without can be added without touching the signed boot chain. The [vos5g-kmod](https://github.com/thalatamsainath/vos5g-kmod) repo builds them from Qualcomm's public SDX55 kernel on CodeLinaro (`LE.UM.4.4.2.r1-01400-SDX55`, the last SDX55 release still on 4.14.117), configured with the stick's own `/proc/config.gz`. Compal's own kernel changes aren't public. The script refuses to build if any built-in option would change, because a module compiled against a different structure layout than the running kernel would crash it.
+The stick's kernel (4.14.117-perf) loads unsigned modules, so features it was built without can be added without touching the signed boot chain. The [vos5g-kmod](https://github.com/vos5g/vos5g-kmod) repo builds them from Qualcomm's public SDX55 kernel on CodeLinaro (`LE.UM.4.4.2.r1-01400-SDX55`, the last SDX55 release still on 4.14.117), configured with the stick's own `/proc/config.gz`. Compal's own kernel changes aren't public. The script refuses to build if any built-in option would change, because a module compiled against a different structure layout than the running kernel would crash it.
 
 | Group (`MODULES=`) | Modules | What it gives |
 |---|---|---|

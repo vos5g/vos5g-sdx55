@@ -16,7 +16,7 @@ Everything else (bind mounts, masked units, iptables rules) is **applied at runt
 ./qcmd/build.sh        # Go 1.22+ -> dist/qcmd-armv7 (static, about 2.5 MB)
 ```
 
-QManager (`qmanager-core-armv7`, about 18 MB with the web UI embedded) is built in its own repo, [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos): take it from that repo's Releases, or build it there (see its README). Skip it if you only want the hardening part.
+QManager (`qmanager-core-armv7`, about 18 MB with the web UI embedded) is built in its own repo, [qmanager-vos](https://github.com/vos5g/qmanager-vos): take it from that repo's Releases, or build it there (see its README). Skip it if you only want the hardening part.
 
 ## Install
 
@@ -58,7 +58,7 @@ ssh -t root@192.168.225.1 /data/vosclean/bin/vosclean qmpass     # QManager pass
 | `SSR_RELATED` | `yes` | On a baseband crash, restart only the modem (about 30 s without data) instead of resetting the whole device. `no` restores the firmware default |
 | `SSR_RECOVER_SECS` | `180` | After a modem crash, reboot the device anyway if mobile data isn't back within this many seconds |
 | `HEARTBEAT_MINUTES` | `5` | How often the on-flash flight recorder (`log/heartbeat.log`) gets a line |
-| `MODULES` | (empty) | Extra kernel module groups to load (`wireguard ipv6nat bbr fqcodel xtmatch`); see [features](07-features-and-limits.md#extra-kernel-modules). Build with [vos5g-kmod](https://github.com/thalatamsainath/vos5g-kmod), upload with `install.sh --modules`; QManager → Kernel Modules edits this line |
+| `MODULES` | (empty) | Extra kernel module groups to load (`wireguard ipv6nat bbr fqcodel xtmatch`); see [features](07-features-and-limits.md#extra-kernel-modules). Build with [vos5g-kmod](https://github.com/vos5g/vos5g-kmod), upload with `install.sh --modules`; QManager → Kernel Modules edits this line |
 
 After editing, run `/data/vosclean/bin/vosclean apply`.
 

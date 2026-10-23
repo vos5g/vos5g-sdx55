@@ -16,7 +16,7 @@
 #   --qcmd FILE      qcmd ARMv7 binary (see qcmd/build.sh)
 #   --tailscale-tiny FILE  Tailscale Tiny binary (see tools/build-tailscale-tiny.sh);
 #                    then install it from QManager -> VPN -> Tailscale -> Tiny
-#   --modules DIR    extra kernel modules built by github.com/thalatamsainath/vos5g-kmod
+#   --modules DIR    extra kernel modules built by github.com/vos5g/vos5g-kmod
 #                    (e.g. ../vos5g-kmod/dist/modules-4.14.117-perf); switch groups on in
 #                    QManager -> System Settings -> Kernel Modules (or MODULES= + vosclean modules)
 #   --check          only run the compatibility checks, change nothing

@@ -4,7 +4,7 @@ This is a reference and step-by-step guide for owners of the **Tri Cascade VOS 5
 
 * **hardens the device:** key-only root SSH, a WWAN-side firewall, the vendor's remote-update client blocked, RPC/NFS off, and stable SSH host keys;
 * **installs [QManager-GO](https://github.com/evairo176/qmanager)** as the web UI, ported from Quectel to this Compal module through a small translator (`qcmd`). You get signal and carrier aggregation, band, cell and 5G-ARFCN locks, the APN, SMS, a neighbour-cell scan, custom DNS, Tailscale, NetBird, a WireGuard VPN client, an AT terminal and more;
-* **adds optional kernel features** (kernel WireGuard, IPv6 NAT, BBR, fq_codel, extra firewall matches) as modules for the stock kernel, built in the separate [vos5g-kmod](https://github.com/thalatamsainath/vos5g-kmod) repo and switched on and off in QManager;
+* **adds optional kernel features** (kernel WireGuard, IPv6 NAT, BBR, fq_codel, extra firewall matches) as modules for the stock kernel, built in the separate [vos5g-kmod](https://github.com/vos5g/vos5g-kmod) repo and switched on and off in QManager;
 * **leaves the read-only system partition untouched.** Everything lives in `/data/vosclean`, starts from one line in a vendor boot script, and is removed with one command.
 
 > **Status:** these tools were tested on one unit, firmware `RXMG1.20.00.326.73_0R19` (v73), customer ID 19 (VOS Dongle), on O2 UK. Other carriers and firmware versions should work but haven't been tested. Read [docs/03-backup.md](docs/03-backup.md) and make your backups **before** you install anything.
@@ -47,7 +47,7 @@ tools/                  backup-ubi.sh (per-volume backups), build-tailscale-tiny
    ```bash
    ./qcmd/build.sh          # -> dist/qcmd-armv7         (needs Go 1.22+)
    ```
-   QManager itself (`qmanager-core-armv7`) comes from [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos): download it from its Releases or build it there.
+   QManager itself (`qmanager-core-armv7`) comes from [qmanager-vos](https://github.com/vos5g/qmanager-vos): download it from its Releases or build it there.
 3. Install:
    ```bash
    ./install.sh --check     # compatibility check only, changes nothing
@@ -62,7 +62,7 @@ To undo: `ssh root@192.168.225.1 /data/vosclean/bin/uninstall.sh`
 ## Credits and licences
 
 * Prior community work: the [eko.one.pl forum thread on the VOS 5G](https://eko.one.pl/forum/viewtopic.php?id=25031). It covers USB modes, bootloader state, EDL, QCN backup and band policy. Many thanks to its contributors.
-* [QManager](https://github.com/dr-dolomite/QManager) by DrDolomite and the [QManager-GO fork](https://github.com/evairo176/qmanager) by evairo176. QManager-GO is licensed **MIT with Commons Clause**. This repository doesn't include QManager; the [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos) fork does, under the same licence (you may not sell it).
+* [QManager](https://github.com/dr-dolomite/QManager) by DrDolomite and the [QManager-GO fork](https://github.com/evairo176/qmanager) by evairo176. QManager-GO is licensed **MIT with Commons Clause**. This repository doesn't include QManager; the [qmanager-vos](https://github.com/vos5g/qmanager-vos) fork does, under the same licence (you may not sell it).
 * [luci-app-5gmodem](https://github.com/fildunsky/luci-app-5gmodem): a router-side LuCI app that already supports this module.
 * Everything else here (vosclean, qcmd, tools, docs) is MIT; see [LICENSE](LICENSE).
 
