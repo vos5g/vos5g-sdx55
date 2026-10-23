@@ -59,6 +59,7 @@ ssh -t root@192.168.225.1 /data/vosclean/bin/vosclean qmpass     # QManager pass
 | `SSR_RELATED` | `yes` | On a baseband crash, restart only the modem (about 30 s without data) instead of resetting the whole device. `no` restores the firmware default |
 | `SSR_RECOVER_SECS` | `180` | After a modem crash, reboot the device anyway if mobile data isn't back within this many seconds |
 | `HEARTBEAT_MINUTES` | `5` | How often the on-flash flight recorder (`log/heartbeat.log`) gets a line |
+| `MODULES` | (empty) | Extra kernel module groups to load (`wireguard ipv6nat bbr fqcodel xtmatch`); see [features](07-features-and-limits.md#extra-kernel-modules). Build with `tools/build-modules.sh`, upload with `install.sh --modules` |
 
 After editing, run `/data/vosclean/bin/vosclean apply`.
 
@@ -73,7 +74,7 @@ vosclean fw | stop-fw
 uninstall.sh        # remove the hook and undo the live changes (files kept)
 ```
 
-Every minute, `boot.sh` re-checks the firewall jump, the DNS and Tailscale rules (QCMAP can flush them) and the modem crash counter. Every `HEARTBEAT_MINUTES` it appends a line (uptime, free memory, load, QManager RSS, modem crashes) to `log/heartbeat.log` on flash, so an unexpected reset leaves evidence.
+Every minute, `boot.sh` re-checks the firewall jump, the DNS and Tailscale rules (QCMAP can flush them) and the modem crash counter. Every `HEARTBEAT_MINUTES` it appends a line (uptime, free memory, load, QManager RSS, modem crashes, lowest supply voltage since the last line) to `log/heartbeat.log` on flash, and each boot logs the PMIC's power-on reason (e.g. `power-dip(SMPL)`) to `log/vosclean.log`, so an unexpected reset leaves evidence.
 
 **Logs and flash wear.** To spare the NAND, the busy logs live in RAM:
 * **QManager's output** goes to `/tmp/vosclean/log/qmanager.log`, capped at 512 KB.

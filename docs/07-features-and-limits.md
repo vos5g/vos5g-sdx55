@@ -56,6 +56,34 @@ The VPN → NetBird page installs NetBird's official ARM build (`linux_armv6`, a
 
 **Only one of Tailscale and NetBird can be installed.** Both use 100.64.0.0/10, so the pages and the backend refuse to install the second one. Start on boot works like Tailscale's (`ENABLED_ON_BOOT`, started by `vosclean apply`). The watch loop also adds NAT and MSS clamping on `wt0`, so devices behind the stick can reach NetBird routes.
 
+## Extra kernel modules
+
+The stick's kernel (4.14.117-perf) loads unsigned modules, so features it was built without can be added without touching the signed boot chain. `tools/build-modules.sh` builds them from Qualcomm's public SDX55 kernel on CodeLinaro (`LE.UM.4.4.2.r1-01400-SDX55`, the last SDX55 release still on 4.14.117), configured with the stick's own `/proc/config.gz`. Compal's own kernel changes aren't public. The script refuses to build if any built-in option would change, because a module compiled against a different structure layout than the running kernel would crash it.
+
+| Group (`MODULES=`) | Modules | What it gives |
+|---|---|---|
+| `wireguard` | udp_tunnel, ip6_udp_tunnel, wireguard (compat 1.0.20220627) | Kernel WireGuard. NetBird uses it when present; Tailscale never does |
+| `ipv6nat` | nf_nat_ipv6, nf_nat_masquerade_ipv6, ip6table_nat, ip6t_MASQUERADE | IPv6 NAT, masquerade and DNAT (e.g. IPv6 DNS redirection) |
+| `bbr` | tcp_bbr, sch_fq | BBR for the stick's own TCP connections (set as the default when loaded) |
+| `fqcodel` | sch_fq_codel | fq_codel queueing for traffic the CPU routes |
+| `xtmatch` | xt_owner, xt_string (+ ts_bm, ts_fsm), xt_connbytes | Extra iptables matches |
+
+All 15 modules were loaded, used (real iptables/ip6tables rules, a WireGuard tunnel, fq_codel on an interface) and unloaded on the stick with no kernel warnings. Everything is 250 KB on `/data`. Install with `install.sh --modules dist/modules-4.14.117-perf`, list groups in `MODULES` in `etc/vosclean.conf`, then run `vosclean modules` (also loaded at every boot by `vosclean apply`). If the stick crashes or resets while modules are loading, the next boot skips them and `vosclean status` says so, until `vosclean modules` is run by hand. Unloading needs a reboot (remove the group first).
+
+**Kernel vs userspace WireGuard, measured on the stick** (tunnel to a fast peer over USB, two runs each):
+
+| | Kernel module | wireguard-go (userspace) |
+|---|---|---|
+| Stick encrypts (sends into the tunnel) | about 114 Mbit/s | about 36 Mbit/s |
+| Stick decrypts (receives from the tunnel) | about 25–30 Mbit/s | about 48 Mbit/s |
+
+The kernel path is about three times faster when the stick sends, for example when it is an exit node serving downloads to remote peers. It is slower when the stick receives, for example when a device behind it downloads from a NAS over the tunnel; that path is CPU-bound in the single core's receive processing, and a larger network budget did not help. There is no NEON in kernel mode (`KERNEL_MODE_NEON` is off), so the module uses the scalar ARM cipher code.
+
+**Not possible as modules:**
+* **nftables:** `CONFIG_NF_TABLES` adds a member to `struct net`.
+* **eBPF, kprobes, ftrace:** built in or nothing.
+* **pstore/ramoops crash logs:** these need reserved memory in the signed device tree.
+
 ## Cell scanner (neighbour cells)
 
 * **There is no Quectel-style `AT+QSCAN`, which would sweep all bands for all operators.** The scan shows what the modem is already measuring: the **serving cell plus LTE intra- and inter-frequency neighbours of your own carrier**. It reads them over QMI NAS (*Get Cell Location Info*, message 0x0043).
