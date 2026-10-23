@@ -52,7 +52,7 @@ func isWrite(cmd string) bool {
 	}
 	if regexp.MustCompile(`^AT\+[A-Z0-9]+="[A-Z0-9_/]+"$`).MatchString(u) || // AT+X="name" (no value) is a query
 		strings.HasPrefix(u, `AT+QENG=`) ||
-		u == "AT+CGPADDR=1" || u == "AT+CGCONTRDP=1" || u == "AT+EGMR=0,0" || u == "AT+CMGF=1" ||
+		u == "AT+CGPADDR=1" || u == "AT+CGCONTRDP=1" || u == "AT+EGMR=0,0" || u == "AT+CMGF=1" || u == "AT+QICSGP=1" ||
 		strings.HasPrefix(u, `AT+CPMS="ME"`) {
 		return false // these are queries in practice
 	}
@@ -68,7 +68,7 @@ func audit(cmd, out string) {
 	if len(res) > 120 {
 		res = res[:120]
 	}
-	line := fmt.Sprintf("%s ppid=%d (%s) cmd=%q result=%q\n", time.Now().UTC().Format("2006-01-02 15:04:05"), os.Getppid(), strings.ReplaceAll(string(parent), "\x00", " "), cmd, res)
+	line := fmt.Sprintf("%s ppid=%d (%s) cmd=%q result=%q\n", time.Now().UTC().Format("2006-01-02 15:04:05"), os.Getppid(), strings.ReplaceAll(string(parent), "\x00", " "), redact(cmd), res)
 	p := "/data/vosclean/log/qcmd-writes.log"
 	if st, err := os.Stat(p); err == nil && st.Size() > 200000 {
 		_ = os.Rename(p, p+".1")
@@ -665,6 +665,8 @@ func handle(cmd string) string {
 		return cgdcont()
 	case strings.HasPrefix(u, "AT+CGDCONT="):
 		return setCgdcont(cmd)
+	case strings.HasPrefix(u, "AT+QICSGP="):
+		return qicsgp(cmd)
 	case strings.HasPrefix(u, "AT+CGACT"):
 		return "OK"
 	case u == `AT+QENG="SERVINGCELL"`:
@@ -735,27 +737,87 @@ func handle(cmd string) string {
 	return strings.TrimSpace(atRaw(cmd))
 }
 
-func profileAPN() string {
-	p := cri("get_profile")
-	for _, l := range strings.Split(p, "\n") {
+// profile is data profile 1 as `cricli get_profile` shows it.
+type profile struct {
+	name, apn, user, pass, pdp string
+	auth                       int // 0 none, 1 PAP, 2 CHAP, 3 PAP or CHAP (cricli's numbering)
+}
+
+var (
+	rePDP     = regexp.MustCompile(`^(IPV4V6|IPV4|IPV6)$`)
+	authNames = map[string]int{"NONE": 0, "PAP": 1, "CHAP": 2, "PAP OR CHAP": 3}
+	pdpCodes  = map[string]string{"IP": "0", "IPV4": "0", "IPV6": "2", "IPV4V6": "3"}
+)
+
+// parseProfile reads profile 1 from get_profile's table:
+//
+//	ID  Profile Name  APN           Username      Password      PDP Type      Auth Type
+//	01                three.co.uk   user          pass          IPV4V6        PAP or CHAP
+//
+// Empty cells are blank and long values overflow their column, so the row is
+// split into words: the PDP type and the auth type (which may contain spaces)
+// are found from the end, and the words before them are assigned to name,
+// APN, username and password by where they start relative to the header.
+func parseProfile(out string) (profile, bool) {
+	var hdr string
+	for _, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, "Profile Name") && strings.Contains(l, "Auth Type") {
+			hdr = l
+			continue
+		}
 		f := strings.Fields(l)
-		if len(f) >= 2 && (f[0] == "01" || f[0] == "1") {
-			for _, x := range f[1:] {
-				if strings.Contains(x, ".") || (len(x) > 2 && !regexp.MustCompile(`^(IPV4V6|IPV4|IPV6|NONE|PAP|CHAP)$`).MatchString(x)) {
-					return strings.ToLower(x)
+		if hdr == "" || len(f) < 3 || (f[0] != "01" && f[0] != "1") {
+			continue
+		}
+		pi := -1
+		for i := len(f) - 1; i >= 1; i-- {
+			if rePDP.MatchString(f[i]) {
+				if _, ok := authNames[strings.ToUpper(strings.Join(f[i+1:], " "))]; ok || i == len(f)-1 {
+					pi = i
+					break
 				}
 			}
 		}
+		if pi < 0 {
+			continue
+		}
+		p := profile{pdp: f[pi], auth: authNames[strings.ToUpper(strings.Join(f[pi+1:], " "))]}
+		cols := []int{strings.Index(hdr, "Profile Name"), strings.Index(hdr, "APN"), strings.Index(hdr, "Username"), strings.Index(hdr, "Password")}
+		dst := []*string{&p.name, &p.apn, &p.user, &p.pass}
+		pos := 0
+		for i, w := range f[:pi] {
+			at := strings.Index(l[pos:], w) + pos
+			pos = at + len(w)
+			if i == 0 {
+				continue // the ID
+			}
+			c := 0
+			for j, start := range cols {
+				if start >= 0 && at >= start {
+					c = j
+				}
+			}
+			if *dst[c] == "" {
+				*dst[c] = w
+			} else if c+1 < len(dst) {
+				*dst[c+1] = w // pushed right by an overflowing value
+			}
+		}
+		return p, true
 	}
-	return ""
+	return profile{}, false
+}
+
+func readProfile() (profile, bool) { return parseProfile(cri("get_profile")) }
+
+func profileAPN() string {
+	p, _ := readProfile()
+	return strings.ToLower(p.apn)
 }
 
 func profilePDP() string {
-	p := cri("get_profile")
-	for _, t := range []string{"IPV4V6", "IPV6", "IPV4"} {
-		if strings.Contains(p, t) {
-			return t
-		}
+	if p, ok := readProfile(); ok && p.pdp != "" {
+		return p.pdp
 	}
 	return "IPV4V6"
 }
@@ -768,18 +830,69 @@ func cgdcont() string {
 	return fmt.Sprintf("+CGDCONT: 1,\"%s\",\"%s\",\"\",0,0,0,0\n\nOK", profilePDP(), apn)
 }
 
+var (
+	reAPN  = regexp.MustCompile(`^[A-Za-z0-9._-]{1,62}$`)
+	reCred = regexp.MustCompile(`^[!#-~]{0,64}$`) // printable ASCII, no spaces or quotes
+)
+
+// writeProfile sets profile 1 in one call, so the modem reconnects once.
+func writeProfile(p profile) string {
+	pdp := pdpCodes[strings.ToUpper(p.pdp)]
+	if pdp == "" || !reAPN.MatchString(p.apn) || !reCred.MatchString(p.user) || !reCred.MatchString(p.pass) || p.auth < 0 || p.auth > 3 {
+		return "ERROR"
+	}
+	if p.auth == 0 {
+		p.user, p.pass = "", ""
+	}
+	return okErr(criOK(criSet("set_profile", "1", p.name, p.apn, p.user, p.pass, pdp, strconv.Itoa(p.auth))))
+}
+
+// AT+CGDCONT=1,"<pdp>","<apn>": keeps the stored username, password and auth.
 func setCgdcont(cmd string) string {
 	a := args(cmd[strings.Index(cmd, "=")+1:])
 	if len(a) < 3 || strings.TrimSpace(a[0]) != "1" {
 		return "ERROR" // only profile 1 is managed here
 	}
-	pdp := map[string]string{"IP": "0", "IPV4": "0", "IPV6": "2", "IPV4V6": "3"}[strings.ToUpper(a[1])]
-	apn := a[2]
-	if pdp == "" || !regexp.MustCompile(`^[A-Za-z0-9._-]{1,62}$`).MatchString(apn) {
+	p, _ := readProfile()
+	p.pdp, p.apn = strings.ToUpper(strings.TrimSpace(a[1])), a[2]
+	if p.pdp == "IP" {
+		p.pdp = "IPV4"
+	}
+	return writeProfile(p)
+}
+
+// AT+QICSGP=1 reads, AT+QICSGP=1,<ctx>,"<apn>","<user>","<pass>",<auth> writes
+// (Quectel's command; context 1 IPv4, 2 IPv6, 3 IPv4v6; auth as cricli's).
+func qicsgp(cmd string) string {
+	a := args(cmd[strings.Index(cmd, "=")+1:])
+	if len(a) == 0 || strings.TrimSpace(a[0]) != "1" {
+		return "ERROR" // only profile 1 is managed here
+	}
+	if len(a) == 1 {
+		p, ok := readProfile()
+		if !ok {
+			return "ERROR"
+		}
+		ctx := map[string]int{"IPV4": 1, "IPV6": 2, "IPV4V6": 3}[p.pdp]
+		return fmt.Sprintf("+QICSGP: %d,\"%s\",\"%s\",\"%s\",%d\n\nOK", ctx, p.apn, p.user, p.pass, p.auth)
+	}
+	if len(a) != 6 {
 		return "ERROR"
 	}
-	return okErr(criOK(criSet("set_profile", "1", "", apn, "", "", pdp, "0")))
+	pdp := map[string]string{"1": "IPV4", "2": "IPV6", "3": "IPV4V6"}[strings.TrimSpace(a[1])]
+	auth, err := strconv.Atoi(strings.TrimSpace(a[5]))
+	if pdp == "" || err != nil {
+		return "ERROR"
+	}
+	p, _ := readProfile()
+	p.pdp, p.apn, p.user, p.pass, p.auth = pdp, a[2], a[3], a[4], auth
+	return writeProfile(p)
 }
+
+// redact hides credentials before a command is logged.
+var reQicsgpPass = regexp.MustCompile(`(?i)^(AT\+QICSGP=[^,]*,[^,]*,"[^"]*","[^"]*",)"[^"]*"`)
+
+func redact(cmd string) string { return reQicsgpPass.ReplaceAllString(cmd, `$1"***"`) }
 
 func qrsrp() string {
 	var b strings.Builder

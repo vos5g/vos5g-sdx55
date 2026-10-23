@@ -67,3 +67,57 @@ func TestTAIndexFromTLV(t *testing.T) {
 		}
 	}
 }
+
+const profileHdr = "rc: 0, error: 0\n ID  Profile Name  APN           Username      Password      PDP Type      Auth Type\n --  ------------  ------------  ------------  ------------  ------------  ------------\n"
+
+func TestParseProfile(t *testing.T) {
+	cases := []struct {
+		row  string
+		want profile
+	}{
+		// real rows from the stick
+		{" 01                Three.co.uk                               IPV4V6        NONE        ", profile{apn: "Three.co.uk", pdp: "IPV4V6"}},
+		{" 01                Three.co.uk   qmtestuser    qmtestpass    IPV4V6        PAP         ", profile{apn: "Three.co.uk", user: "qmtestuser", pass: "qmtestpass", pdp: "IPV4V6", auth: 1}},
+		{" 01                Three.co.uk   qmtestuser    qmtestpass    IPV4V6        CHAP        ", profile{apn: "Three.co.uk", user: "qmtestuser", pass: "qmtestpass", pdp: "IPV4V6", auth: 2}},
+		{" 01                Three.co.uk   qmtestuser    qmtestpass    IPV4V6        PAP or CHAP ", profile{apn: "Three.co.uk", user: "qmtestuser", pass: "qmtestpass", pdp: "IPV4V6", auth: 3}},
+		// an APN wider than its column pushes the rest right
+		{" 01                mobile.o2.co.uk o2web       password      IPV4V6        PAP         ", profile{apn: "mobile.o2.co.uk", user: "o2web", pass: "password", pdp: "IPV4V6", auth: 1}},
+		{" 01                mobile.o2.co.uk                             IPV4          NONE        ", profile{apn: "mobile.o2.co.uk", pdp: "IPV4"}},
+		// username only, and a profile name
+		{" 01                internet      bob                         IPV6          CHAP        ", profile{apn: "internet", user: "bob", pdp: "IPV6", auth: 2}},
+		{" 01  myprofile     internet                                  IPV4V6        NONE        ", profile{name: "myprofile", apn: "internet", pdp: "IPV4V6"}},
+	}
+	for _, c := range cases {
+		got, ok := parseProfile(profileHdr + c.row + "\n")
+		if !ok || got != c.want {
+			t.Errorf("%q\n got  %+v\n want %+v", c.row, got, c.want)
+		}
+	}
+	if _, ok := parseProfile("rc: 0, error: 0\n"); ok {
+		t.Error("parsed a profile from empty output")
+	}
+}
+
+func TestRedact(t *testing.T) {
+	in := `AT+QICSGP=1,3,"three.co.uk","user","s3cret",1`
+	if got := redact(in); got != `AT+QICSGP=1,3,"three.co.uk","user","***",1` {
+		t.Fatalf("redact: %s", got)
+	}
+	if got := redact(`AT+CGDCONT=1,"IPV4V6","x"`); got != `AT+CGDCONT=1,"IPV4V6","x"` {
+		t.Fatalf("redact changed an unrelated command: %s", got)
+	}
+}
+
+func TestWriteProfileRejects(t *testing.T) {
+	for _, p := range []profile{
+		{apn: "bad apn", pdp: "IPV4V6"},
+		{apn: "ok", pdp: "IPV4V6", user: "has space", auth: 1},
+		{apn: "ok", pdp: "IPV4V6", pass: `quo"te`, auth: 1},
+		{apn: "ok", pdp: "IPV4V6", auth: 4},
+		{apn: "ok", pdp: "X"},
+	} {
+		if writeProfile(p) != "ERROR" {
+			t.Errorf("accepted %+v", p)
+		}
+	}
+}
