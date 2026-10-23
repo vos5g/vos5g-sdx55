@@ -58,7 +58,7 @@ The VPN → NetBird page installs NetBird's official ARM build (`linux_armv6`, a
 
 ## Extra kernel modules
 
-The stick's kernel (4.14.117-perf) loads unsigned modules, so features it was built without can be added without touching the signed boot chain. `tools/build-modules.sh` builds them from Qualcomm's public SDX55 kernel on CodeLinaro (`LE.UM.4.4.2.r1-01400-SDX55`, the last SDX55 release still on 4.14.117), configured with the stick's own `/proc/config.gz`. Compal's own kernel changes aren't public. The script refuses to build if any built-in option would change, because a module compiled against a different structure layout than the running kernel would crash it.
+The stick's kernel (4.14.117-perf) loads unsigned modules, so features it was built without can be added without touching the signed boot chain. The [vos5g-kmod](https://github.com/thalatamsainath/vos5g-kmod) repo builds them from Qualcomm's public SDX55 kernel on CodeLinaro (`LE.UM.4.4.2.r1-01400-SDX55`, the last SDX55 release still on 4.14.117), configured with the stick's own `/proc/config.gz`. Compal's own kernel changes aren't public. The script refuses to build if any built-in option would change, because a module compiled against a different structure layout than the running kernel would crash it.
 
 | Group (`MODULES=`) | Modules | What it gives |
 |---|---|---|
@@ -68,7 +68,7 @@ The stick's kernel (4.14.117-perf) loads unsigned modules, so features it was bu
 | `fqcodel` | sch_fq_codel | fq_codel queueing for traffic the CPU routes |
 | `xtmatch` | xt_owner, xt_string (+ ts_bm, ts_fsm), xt_connbytes | Extra iptables matches |
 
-All 15 modules were loaded, used (real iptables/ip6tables rules, a WireGuard tunnel, fq_codel on an interface) and unloaded on the stick with no kernel warnings. Everything is 250 KB on `/data`. Install with `install.sh --modules dist/modules-4.14.117-perf`, list groups in `MODULES` in `etc/vosclean.conf`, then run `vosclean modules` (also loaded at every boot by `vosclean apply`). If the stick crashes or resets while modules are loading, the next boot skips them and `vosclean status` says so, until `vosclean modules` is run by hand. Unloading needs a reboot (remove the group first).
+All 15 modules were loaded, used (real iptables/ip6tables rules, a WireGuard tunnel, fq_codel on an interface) and unloaded on the stick with no kernel warnings. Everything is 250 KB on `/data`. Build them there (or take a release tarball), upload with `install.sh --modules /path/to/vos5g-kmod/dist/modules-4.14.117-perf`, then switch groups on in **QManager → System Settings → Kernel Modules** (or set `MODULES` in `etc/vosclean.conf` and run `vosclean modules`). Enabled groups load at every boot; switching one off unloads it unless it is still in use. If the stick crashes or resets while modules are loading, the next boot skips them and `vosclean status` says so, until `vosclean modules` is run by hand. Unloading needs a reboot (remove the group first).
 
 **Kernel vs userspace WireGuard, measured on the stick** (tunnel to a fast peer over USB, two runs each):
 

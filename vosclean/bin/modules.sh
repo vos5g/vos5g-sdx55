@@ -1,5 +1,5 @@
 # vosclean extra kernel modules (sourced by vosclean).
-# Modules built by tools/build-modules.sh for this exact kernel live in
+# Modules built by the vos5g-kmod repo for this exact kernel live in
 # $VC/modules/<uname -r>/. MODULES in etc/vosclean.conf lists the groups to load:
 #   wireguard  kernel WireGuard (udp_tunnel, ip6_udp_tunnel, wireguard)
 #   ipv6nat    IPv6 NAT / masquerade / DNAT (nf_nat_ipv6, ip6table_nat, ...)

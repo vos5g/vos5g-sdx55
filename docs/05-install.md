@@ -59,7 +59,7 @@ ssh -t root@192.168.225.1 /data/vosclean/bin/vosclean qmpass     # QManager pass
 | `SSR_RELATED` | `yes` | On a baseband crash, restart only the modem (about 30 s without data) instead of resetting the whole device. `no` restores the firmware default |
 | `SSR_RECOVER_SECS` | `180` | After a modem crash, reboot the device anyway if mobile data isn't back within this many seconds |
 | `HEARTBEAT_MINUTES` | `5` | How often the on-flash flight recorder (`log/heartbeat.log`) gets a line |
-| `MODULES` | (empty) | Extra kernel module groups to load (`wireguard ipv6nat bbr fqcodel xtmatch`); see [features](07-features-and-limits.md#extra-kernel-modules). Build with `tools/build-modules.sh`, upload with `install.sh --modules` |
+| `MODULES` | (empty) | Extra kernel module groups to load (`wireguard ipv6nat bbr fqcodel xtmatch`); see [features](07-features-and-limits.md#extra-kernel-modules). Build with [vos5g-kmod](https://github.com/thalatamsainath/vos5g-kmod), upload with `install.sh --modules`; QManager → Kernel Modules edits this line |
 
 After editing, run `/data/vosclean/bin/vosclean apply`.
 

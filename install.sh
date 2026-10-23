@@ -16,8 +16,9 @@
 #   --qcmd FILE      qcmd ARMv7 binary (see qcmd/build.sh)
 #   --tailscale-tiny FILE  Tailscale Tiny binary (see tools/build-tailscale-tiny.sh);
 #                    then install it from QManager -> VPN -> Tailscale -> Tiny
-#   --modules DIR    extra kernel modules (see tools/build-modules.sh, e.g. dist/modules-4.14.117-perf);
-#                    then pick groups with MODULES="..." in etc/vosclean.conf and run: vosclean modules
+#   --modules DIR    extra kernel modules built by github.com/thalatamsainath/vos5g-kmod
+#                    (e.g. ../vos5g-kmod/dist/modules-4.14.117-perf); switch groups on in
+#                    QManager -> System Settings -> Kernel Modules (or MODULES= + vosclean modules)
 #   --check          only run the compatibility checks, change nothing
 #
 # See docs/05-install.md before running this for the first time.
@@ -51,7 +52,7 @@ if [ -n "$QM$QCMD" ]; then
 fi
 
 [ -z "$TSTINY" ] || [ -s "$TSTINY" ] || die "Tailscale Tiny binary $TSTINY not found"
-[ -z "$MODS" ] || [ -s "$MODS/SHA256SUMS" ] || die "module directory $MODS has no SHA256SUMS (run tools/build-modules.sh)"
+[ -z "$MODS" ] || [ -s "$MODS/SHA256SUMS" ] || die "module directory $MODS has no SHA256SUMS (build it with vos5g-kmod/build.sh)"
 
 # one SSH connection for the whole run, so the password (if any) is asked once
 CTL_DIR=$(mktemp -d); trap 'ssh -o ControlPath="$CTL_DIR/c" -O exit root@"$HOST" >/dev/null 2>&1 || true; rm -rf "$CTL_DIR"' EXIT
