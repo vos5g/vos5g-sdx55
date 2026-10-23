@@ -12,7 +12,7 @@
 # Options:
 #   --host IP        modem address (default 192.168.225.1)
 #   --pubkey FILE    SSH public key to authorise for root (strongly recommended)
-#   --qmanager FILE  qmanager-core ARMv7 binary (see qmanager/build.sh)
+#   --qmanager FILE  qmanager-core ARMv7 binary (from qmanager-vos releases)
 #   --qcmd FILE      qcmd ARMv7 binary (see qcmd/build.sh)
 #   --tailscale-tiny FILE  Tailscale Tiny binary (see tools/build-tailscale-tiny.sh);
 #                    then install it from QManager -> VPN -> Tailscale -> Tiny

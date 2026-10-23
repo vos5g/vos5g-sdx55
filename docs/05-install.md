@@ -13,17 +13,16 @@ Everything else (bind mounts, masked units, iptables rules) is **applied at runt
 ## Build or obtain the binaries
 
 ```bash
-./qcmd/build.sh        # Go 1.22+          -> dist/qcmd-armv7 (static, about 2.5 MB)
-./qmanager/build.sh    # Go 1.22+, Node 20 -> dist/qmanager-core-armv7 (about 16 MB, web UI embedded)
+./qcmd/build.sh        # Go 1.22+ -> dist/qcmd-armv7 (static, about 2.5 MB)
 ```
 
-`qmanager/build.sh` clones QManager-GO at the commit pinned in `qmanager/UPSTREAM_COMMIT`, applies `vosclean.patch`, runs `npm ci && next build`, and cross-compiles. Skip it if you only want the hardening part.
+QManager (`qmanager-core-armv7`, about 18 MB with the web UI embedded) is built in its own repo, [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos): take it from that repo's Releases, or build it there (see its README). Skip it if you only want the hardening part.
 
 ## Install
 
 ```bash
 ./install.sh --check
-./install.sh --pubkey ~/.ssh/id_ed25519.pub --qmanager dist/qmanager-core-armv7 --qcmd dist/qcmd-armv7
+./install.sh --pubkey ~/.ssh/id_ed25519.pub --qmanager /path/to/qmanager-core-armv7 --qcmd dist/qcmd-armv7
 ```
 
 The installer:

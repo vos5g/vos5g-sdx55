@@ -37,7 +37,6 @@ vosclean/               the on-device payload (copied to /data/vosclean)
   stub/fotaclient         replaces the vendor update client at runtime
   web/                    minimal fallback web UI (disabled by default)
 qcmd/                   Go: Quectel-AT -> Compal (cricli / atcli / QMI) translator
-qmanager/               vosclean.patch + build.sh against a pinned upstream commit
 tools/                  backup-ubi.sh (per-volume backups), build-tailscale-tiny.sh, vos_readonly_probe.sh
 ```
 
@@ -47,13 +46,13 @@ tools/                  backup-ubi.sh (per-volume backups), build-tailscale-tiny
 2. Build the binaries (or download them from Releases, if available):
    ```bash
    ./qcmd/build.sh          # -> dist/qcmd-armv7         (needs Go 1.22+)
-   ./qmanager/build.sh      # -> dist/qmanager-core-armv7 (needs Go + Node 20)
    ```
+   QManager itself (`qmanager-core-armv7`) comes from [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos): download it from its Releases or build it there.
 3. Install:
    ```bash
    ./install.sh --check     # compatibility check only, changes nothing
    ./install.sh --pubkey ~/.ssh/id_ed25519.pub \
-                --qmanager dist/qmanager-core-armv7 --qcmd dist/qcmd-armv7
+                --qmanager /path/to/qmanager-core-armv7 --qcmd dist/qcmd-armv7
    ssh -t root@192.168.225.1 /data/vosclean/bin/vosclean qmpass   # set the QManager password
    ```
 4. Open **http://192.168.225.1:8080**, or **https://192.168.225.1:8443** (self-signed certificate).
@@ -63,7 +62,7 @@ To undo: `ssh root@192.168.225.1 /data/vosclean/bin/uninstall.sh`
 ## Credits and licences
 
 * Prior community work: the [eko.one.pl forum thread on the VOS 5G](https://eko.one.pl/forum/viewtopic.php?id=25031). It covers USB modes, bootloader state, EDL, QCN backup and band policy. Many thanks to its contributors.
-* [QManager](https://github.com/dr-dolomite/QManager) by DrDolomite and the [QManager-GO fork](https://github.com/evairo176/qmanager) by evairo176. QManager-GO is licensed **MIT with Commons Clause**. This repository ships only a patch against them, and the same licence applies to the patched result (you may not sell it).
+* [QManager](https://github.com/dr-dolomite/QManager) by DrDolomite and the [QManager-GO fork](https://github.com/evairo176/qmanager) by evairo176. QManager-GO is licensed **MIT with Commons Clause**. This repository doesn't include QManager; the [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos) fork does, under the same licence (you may not sell it).
 * [luci-app-5gmodem](https://github.com/fildunsky/luci-app-5gmodem): a router-side LuCI app that already supports this module.
 * Everything else here (vosclean, qcmd, tools, docs) is MIT; see [LICENSE](LICENSE).
 

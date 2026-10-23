@@ -6,7 +6,7 @@
    * `cricli`, Compal's radio CLI;
    * `atcli`, Compal's AT commands (`AT+BINFO`, `AT+BNRINFO`, `AT+LCAINFO`, `AT+NRCAINFO`, `AT+BCONFIG?`, …);
    * **QMI over QRTR**, through raw `AF_QIPCRTR` sockets with no libqmi (NAS *Get Cell Location Info*), for the neighbour-cell scan.
-2. **`qmanager/vosclean.patch`**, small changes to QManager itself (below).
+2. **[qmanager-vos](https://github.com/thalatamsainath/qmanager-vos)**, a fork of QManager-GO with the VOS changes as separate commits on top of upstream (below).
 
 ## How `qcmd` behaves
 
@@ -35,45 +35,25 @@
 | `AT+CFUN=0/1`, `AT+CFUN=1,1` | `cricli set_op_mode`, `systemctl reboot` |
 | `sms_tool` (multi-call) | `cricli` SMS commands. A send that fails on 5G SA is retried on LTE automatically (see 07) |
 
-## What `vosclean.patch` changes in QManager
+## What the fork changes in QManager
 
-* **No mock data and no raw serial access on Linux.** Upstream shows fake demo values when it can't reach a modem, and hard-codes several dashboard values (connectivity, LTE category, supported bands). With the patch, the AT client uses `qcmd` only, and those fields show real values or nothing.
+* **No mock data and no raw serial access on Linux.** Upstream shows fake demo values when it can't reach a modem, and hard-codes several dashboard values (connectivity, LTE category, supported bands). In the fork, the AT client uses `qcmd` only, and those fields show real values or nothing.
 * **The watchdog's recovery actions are off by default.** It still pings, so the latency graphs are real, but radio toggles and reboots only happen with `QM_WATCHDOG=1`.
-* **Self-update is disabled,** because it would replace the patched build.
+* **Self-update is disabled,** because it would replace this build with an upstream one.
 * **Settings live under `/data/vosclean/qm`,** because `/etc` is read-only here.
 * **Parser fixes** for Quectel reply formats: 5G SA and LTE serving cell, `CGCONTRDP` DNS, CA and band lists.
 * **Cellular Information page:** fills in Cell ID, TAC, eNB/sector, NR bandwidth, total bandwidth and carrier details, and IPv4 DNS.
 * **The Cell Scanner endpoint returns the shape the page expects,** including PLMN → operator names.
-* **Custom DNS is applied for real.** Upstream only saved it to a file; the patch calls `vosclean dns` (see 07).
-* **Tailscale works for real.** Upstream's VPN → Tailscale endpoint is a stub that does nothing. The patch implements it, and adds two controls to the page: *Accept subnet routes* and *Use exit node*. This is the only front-end change. See 07.
+* **Custom DNS is applied for real.** Upstream only saved it to a file; the fork calls `vosclean dns` (see 07).
+* **Tailscale works for real.** Upstream's VPN → Tailscale endpoint is a stub that does nothing. The fork implements it, and adds two controls to the page: *Accept subnet routes* and *Use exit node*. See 07.
+* **New pages:** NetBird, WireGuard, Kernel Modules, Web Console, System Health Check, bandwidth monitor and a working speed test. See 07.
+* **Pages that do nothing on this modem are hidden** (the list and the reasons are in the fork's `src/constants/vos-features.ts`).
 * **Audit log.** Every non-GET request is logged to `/data/vosclean/log/qm-requests.log` (method, path and client, never request bodies). If a reboot is ever triggered from the UI, it shows up there.
 
 ## Feature matrix on this module
 
-| Page / feature | Status |
-|---|---|
-| Dashboard, signal, per-antenna, CA, temperatures, latency | ✅ |
-| Network mode, LTE / NSA / SA band locking, restore defaults | ✅ |
-| LTE cell lock, 5G cell lock, **5G ARFCN lock** | ✅ |
-| LTE EARFCN-only lock | ❌ The modem only accepts LTE locks to a specific cell |
-| APN / profiles | ✅ |
-| SMS inbox / send / delete | ✅ (sending on 5G SA: see 07) |
-| Cell scanner | ✅ Your carrier only. LTE neighbours; NR shows the serving cell only |
-| Custom DNS (IPv4) | ✅ Applied through dnsmasq upstream DNAT |
-| Tailscale (Official and Tiny) | ✅ Install, log in, connect/disconnect, start on boot, accept subnet routes, use/advertise exit node, uninstall |
-| AT terminal | ✅ With the dangerous commands blocked |
-| Radio off/on, reboot | ✅ |
-| SIM slot switching / dual SIM | ❌ One physical SIM slot on the VOS board |
-| NR-DC / mmWave | ❌ The module has no mmWave RF |
-| IMEI editing | ❌ Deliberately disabled |
-| Video optimiser / DPI masquerade | ❌ User traffic is offloaded in hardware (IPA) and never reaches Linux. See 07 |
-| QManager self-update | ❌ Disabled (it would drop the patch) |
+The up-to-date list of what works, and of what is hidden and why, is in the [qmanager-vos README](https://github.com/thalatamsainath/qmanager-vos#what-works).
 
 ## Building
 
-```bash
-./qmanager/build.sh            # full build
-SKIP_WEB=1 ./qmanager/build.sh # back end only (reuses the existing web/out in build/qmanager-src)
-```
-
-To move to a newer upstream: update `UPSTREAM_COMMIT`, rebuild, fix any rejects in the patch, run `go test ./...` in `backend/`, then regenerate the patch with `git diff > ../../qmanager/vosclean.patch`.
+QManager is built in [qmanager-vos](https://github.com/thalatamsainath/qmanager-vos#building) (Node 20+ or Bun, Go 1.24+); its CI attaches `qmanager-core-armv7` to each release. `qcmd` is built here with `./qcmd/build.sh`.
