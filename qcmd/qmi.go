@@ -4,9 +4,10 @@ package main
 
 import (
 	"encoding/binary"
-	"os"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -282,4 +283,29 @@ func cellScan() string {
 		return "OK"
 	}
 	return strings.Join(out, "\n") + "\n\nOK"
+}
+
+// lteTimeAdvance answers Quectel's AT+QNWCFG="lte_time_advance" from QMI NAS
+// "Get Cell Location Info" TLV 0x1E (LTE timing advance in microseconds,
+// 0xFFFFFFFF = unavailable), converted to the 3GPP TA index the UI expects:
+// one TA step is 16 Ts = 16/30.72 us, so index = us * 1.92.
+// The modem fills it only while on LTE; on 5G SA it is absent ("-").
+// There is no NR timing advance in QMI, so nr5g_time_advance stays ERROR.
+func lteTimeAdvance() string {
+	ta := "-"
+	if tlvs, err := qmiRequest(3, 0x0043); err == nil {
+		ta = taIndexFromTLV(tlvs[0x1E])
+	}
+	return "+QNWCFG: \"lte_time_advance\",1," + ta + "\n\nOK"
+}
+
+func taIndexFromTLV(v []byte) string {
+	if len(v) < 4 {
+		return "-"
+	}
+	us := binary.LittleEndian.Uint32(v)
+	if us == 0xFFFFFFFF {
+		return "-"
+	}
+	return strconv.Itoa(int(float64(us)*1.92 + 0.5))
 }

@@ -53,3 +53,17 @@ func TestLteBandAndPLMN(t *testing.T) {
 		t.Fatalf("plmn %s %s", mcc, mnc)
 	}
 }
+
+func TestTAIndexFromTLV(t *testing.T) {
+	le := func(v uint32) []byte { return []byte{byte(v), byte(v >> 8), byte(v >> 16), byte(v >> 24)} }
+	for _, c := range []struct {
+		in   []byte
+		want string
+	}{
+		{le(0xFFFFFFFF), "-"}, {nil, "-"}, {le(0), "0"}, {le(10), "19"}, {le(100), "192"},
+	} {
+		if got := taIndexFromTLV(c.in); got != c.want {
+			t.Errorf("taIndexFromTLV(%v) = %s, want %s", c.in, got, c.want)
+		}
+	}
+}

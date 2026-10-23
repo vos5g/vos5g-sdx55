@@ -701,6 +701,8 @@ func handle(cmd string) string {
 		return "+QNWCFG: \"lte_earfcn_lock\",0\n\nOK"
 	case strings.HasPrefix(u, `AT+QNWCFG="NR5G_EARFCN_LOCK"`):
 		return nrEarfcnLock(cmd)
+	case strings.HasPrefix(u, `AT+QNWCFG="LTE_TIME_ADVANCE"`):
+		return lteTimeAdvance()
 	case strings.HasPrefix(u, "AT+CFUN?"):
 		if strings.Contains(cri("op_mode"), "Online") {
 			return "+CFUN: 1\n\nOK"
