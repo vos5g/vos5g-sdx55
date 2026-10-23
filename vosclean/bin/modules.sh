@@ -13,6 +13,8 @@ MOD_DIR=$VC/modules/$(uname -r)
 MOD_MARK=$VC/modules/LOADING
 MOD_FAILED=$VC/modules/FAILED
 
+MOD_GROUPS="wireguard ipv6nat bbr fqcodel xtmatch"
+
 mod_group() {
   case $1 in
     wireguard) echo "udp_tunnel ip6_udp_tunnel wireguard" ;;
@@ -24,7 +26,7 @@ mod_group() {
 }
 
 do_modules() { # $1=manual: run by hand (clears a previous failure)
-  [ -n "$MODULES" ] || return 0
+  [ -n "$MODULES" ] || { [ "$1" = manual ] && mod_unload_disabled; return 0; }
   [ -d "$MOD_DIR" ] || { log "modules: none built for kernel $(uname -r) (expected $MOD_DIR)"; return 0; }
   if [ "$1" = manual ]; then
     rm -f $MOD_FAILED
@@ -44,10 +46,33 @@ do_modules() { # $1=manual: run by hand (clears a previous failure)
   done
   rm -f $MOD_MARK; sync
   case " $MODULES " in *" bbr "*) grep -q "^tcp_bbr " /proc/modules && sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null ;; esac
+  [ "$1" = manual ] && mod_unload_disabled
   [ -n "$loaded" ] && log "modules loaded:$loaded"
   [ -n "$failed" ] && log "modules FAILED:$failed"
   return 0
 }
+
+# Unload groups that are no longer listed (newest first); a module still in use
+# (e.g. wireguard by NetBird, BBR by open connections) stays until the next reboot.
+mod_unload_disabled() {
+  keep=""; for g in $MODULES; do keep="$keep $(mod_group $g)"; done
+  case " $MODULES " in *" bbr "*) ;; *) [ "$(cat /proc/sys/net/ipv4/tcp_congestion_control)" = bbr ] && sysctl -w net.ipv4.tcp_congestion_control=cubic >/dev/null ;; esac
+  unloaded=""; busy=""
+  for g in $MOD_GROUPS; do
+    case " $MODULES " in *" $g "*) continue ;; esac
+    for m in $(mod_group $g | tr ' ' '\n' | sed '1!G;h;$!d'); do   # reverse order
+      case " $keep " in *" $m "*) continue ;; esac
+      grep -q "^$m " /proc/modules || continue
+      if rmmod $m 2>/dev/null; then unloaded="$unloaded $m"; else busy="$busy $m"; fi
+    done
+  done
+  [ -n "$unloaded" ] && log "modules unloaded:$unloaded"
+  [ -n "$busy" ] && log "modules still in use (unload at next reboot):$busy"
+  return 0
+}
+
+# machine-readable list for QManager: "<group> <module> <module>..."
+modules_list() { for g in $MOD_GROUPS; do echo "$g $(mod_group $g)"; done; }
 
 modules_status() {
   [ -n "$MODULES" ] || { echo "kernel modules: none configured (MODULES in etc/vosclean.conf)"; return; }

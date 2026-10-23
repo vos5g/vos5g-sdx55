@@ -323,8 +323,9 @@ case "$1" in
   tsfw)    ts_fw ;;
   ssr)     do_ssr ;;
   modules) do_modules manual; modules_status ;;
+  modules-list) modules_list ;;
   status)  status ;;
   fw)      do_fw ;;
   stop-fw) stop_fw ;;
-  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw|ssr|modules}"; exit 1 ;;
+  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw|ssr|modules|modules-list}"; exit 1 ;;
 esac
