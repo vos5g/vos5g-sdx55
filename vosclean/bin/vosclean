@@ -2,9 +2,29 @@
 # vosclean control script. Run with no arguments for usage.
 VC=/data/vosclean
 LOG=$VC/log/vosclean.log
-[ -f $VC/etc/vosclean.conf ] && . $VC/etc/vosclean.conf
+CONF=$VC/etc/vosclean.conf
+GOOD=$VC/etc/vosclean.conf.last-good
+# Secure defaults first: an empty, missing or damaged settings file must never
+# switch the hardening off (an unflushed rewrite once left it empty after a reset).
+SSH_PASSWORD_AUTH=no FIREWALL_WWAN_BLOCK=yes DISABLE_FOTACLIENT=yes DISABLE_RPC_NFS=yes
+PERSIST_HOSTKEYS=yes UI_ENABLE=no QM_ENABLE=yes QM_PORT=8080 QM_TLS_PORT=8443 QM_WATCHDOG=0
+SSR_RELATED=yes SSR_RECOVER_SECS=180 HEARTBEAT_MINUTES=5 MODULES=""
+conf_ok() { [ -s "$1" ] && grep -q '^[A-Z_][A-Z0-9_]*=' "$1" && sh -n "$1" 2>/dev/null; }
+CONF_NOTE=""
+if ! conf_ok $CONF; then
+  if conf_ok $GOOD; then
+    cp $GOOD $CONF.tmp && sync && mv $CONF.tmp $CONF && sync
+    CONF_NOTE="etc/vosclean.conf was empty or damaged: restored the last good copy"
+  else
+    CONF_NOTE="etc/vosclean.conf is empty or damaged and there is no last good copy: using secure defaults"
+  fi
+fi
+conf_ok $CONF && . $CONF
 mkdir -p $VC/log
 log() { echo "$(date -u '+%F %T') $*" >> $LOG; }
+[ -n "$CONF_NOTE" ] && log "WARNING: $CONF_NOTE"
+# remember a known-good copy of the settings (written only when they change)
+conf_save_good() { conf_ok $CONF && ! cmp -s $CONF $GOOD && cp $CONF $GOOD.tmp && sync && mv $GOOD.tmp $GOOD && sync; return 0; }
 # keep log small
 [ -f $LOG ] && [ $(wc -c < $LOG) -gt 200000 ] && tail -c 100000 $LOG > $LOG.tmp && mv $LOG.tmp $LOG
 
@@ -313,7 +333,7 @@ status() {
 [ -f $VC/bin/modules.sh ] && . $VC/bin/modules.sh
 
 case "$1" in
-  apply)   do_ssr; do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns; do_modules; do_ts; do_nb ;;
+  apply)   do_ssr; do_roothome; do_hostkeys; do_sshd; do_fw; do_fota; do_rpc; do_bandsave; do_ui; do_time; do_qm; do_dns; do_modules; do_ts; do_nb; conf_save_good ;;
   uipass)  ui_pass ;;
   ui)      do_ui ;;
   qm)      do_time; do_qm ;;
@@ -322,7 +342,7 @@ case "$1" in
   dns)     do_dns ;;
   tsfw)    ts_fw ;;
   ssr)     do_ssr ;;
-  modules) do_modules manual; modules_status ;;
+  modules) do_modules manual; conf_save_good; modules_status ;;
   modules-list) modules_list ;;
   status)  status ;;
   fw)      do_fw ;;
