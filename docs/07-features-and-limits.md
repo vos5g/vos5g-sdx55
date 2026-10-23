@@ -66,7 +66,7 @@ The VPN → WireGuard page connects the stick to any WireGuard server, such as a
 
 **Per-config options:**
 
-* **Engine:** the kernel module or userspace (wireguard-go). The kernel engine loads the `wireguard` module group through vosclean's guarded loader. Forwarding downloads to a device behind the stick reached 39–48 Mbit/s with the kernel module and 13–16 with userspace.
+* **Engine:** the kernel module or userspace (wireguard-go). The kernel engine loads the `wireguard` module group through vosclean's guarded loader. Through a real VPN (Privado, London), a device behind the stick got 65 Mbit/s with the kernel module and 17 with userspace; a local test peer gave 39–48 and 13–16.
 * **What uses the VPN:** either devices behind the stick, or those and the stick itself. AllowedIPs decides which destinations go through the tunnel: 0.0.0.0/0 means everything.
   * The tunnel's own packets carry fwmark 0xca6c and always go out over mobile data.
   * Tailscale's rules come first, so Tailscale keeps working in both modes.
