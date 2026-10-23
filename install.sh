@@ -16,13 +16,15 @@
 #   --qcmd FILE      qcmd ARMv7 binary (see qcmd/build.sh)
 #   --tailscale-tiny FILE  Tailscale Tiny binary (see tools/build-tailscale-tiny.sh);
 #                    then install it from QManager -> VPN -> Tailscale -> Tiny
+#   --modules DIR    extra kernel modules (see tools/build-modules.sh, e.g. dist/modules-4.14.117-perf);
+#                    then pick groups with MODULES="..." in etc/vosclean.conf and run: vosclean modules
 #   --check          only run the compatibility checks, change nothing
 #
 # See docs/05-install.md before running this for the first time.
 set -euo pipefail
 
 HOST=192.168.225.1
-PUBKEY="" QM="" QCMD="" TSTINY="" CHECK_ONLY=0
+PUBKEY="" QM="" QCMD="" TSTINY="" MODS="" CHECK_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) HOST=$2; shift 2 ;;
@@ -30,6 +32,7 @@ while [ $# -gt 0 ]; do
     --qmanager) QM=$2; shift 2 ;;
     --qcmd) QCMD=$2; shift 2 ;;
     --tailscale-tiny) TSTINY=$2; shift 2 ;;
+    --modules) MODS=$2; shift 2 ;;
     --check) CHECK_ONLY=1; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
@@ -48,6 +51,7 @@ if [ -n "$QM$QCMD" ]; then
 fi
 
 [ -z "$TSTINY" ] || [ -s "$TSTINY" ] || die "Tailscale Tiny binary $TSTINY not found"
+[ -z "$MODS" ] || [ -s "$MODS/SHA256SUMS" ] || die "module directory $MODS has no SHA256SUMS (run tools/build-modules.sh)"
 
 # one SSH connection for the whole run, so the password (if any) is asked once
 CTL_DIR=$(mktemp -d); trap 'ssh -o ControlPath="$CTL_DIR/c" -O exit root@"$HOST" >/dev/null 2>&1 || true; rm -rf "$CTL_DIR"' EXIT
@@ -101,6 +105,15 @@ if [ -n "$TSTINY" ]; then
   echo "== Uploading Tailscale Tiny (install it from QManager -> VPN -> Tailscale -> Tiny)"
   want=$(sha "$TSTINY")
   "${SSH[@]}" "F=/data/vosclean/qm/tailscale-tiny; mkdir -p /data/vosclean/qm; cat > \$F.new && [ \"\$(sha256sum \$F.new | cut -d' ' -f1)\" = $want ] && chmod 755 \$F.new && mv \$F.new \$F && echo '  uploaded ${want:0:8}' || { rm -f \$F.new; echo '  checksum mismatch, not uploaded'; exit 1; }" < "$TSTINY"
+fi
+
+if [ -n "$MODS" ]; then
+  kver=$(basename "$MODS"); kver=${kver#modules-}
+  echo "== Uploading kernel modules for $kver"
+  (cd "$MODS" && tar -cf - *.ko SHA256SUMS) | "${SSH[@]}" "set -e; [ \"\$(uname -r)\" = $kver ] || { echo '  modem runs kernel '\$(uname -r)', modules are for $kver: not installed'; exit 1; }
+    T=/data/vosclean/modules/.new; rm -rf \$T; mkdir -p \$T; tar -xf - -C \$T
+    cd \$T && sha256sum -c SHA256SUMS >/dev/null || { echo '  checksum mismatch, not installed'; rm -rf \$T; exit 1; }
+    rm -rf /data/vosclean/modules/$kver; mv \$T /data/vosclean/modules/$kver; echo \"  \$(ls /data/vosclean/modules/$kver/*.ko | wc -l) modules installed\""
 fi
 
 echo "== Installing the boot hook"
