@@ -32,6 +32,7 @@
 | `AT+QNWLOCK="common/4g"` / `"common/5g"` | `cricli set_cell_config` / `set_nr5g_cell_config` |
 | `AT+QNWCFG="nr5g_earfcn_lock"` | NR ARFCN lock via `cricli` |
 | `AT+CGDCONT`, `AT+CGCONTRDP`, `AT+CGPADDR` | `cricli get/set_profile`, `wwan_config` |
+| `AT+QICSGP` (APN username, password, PAP/CHAP) | `cricli get/set_profile`; the password is masked in the write log |
 | `AT+CFUN=0/1`, `AT+CFUN=1,1` | `cricli set_op_mode`, `systemctl reboot` |
 | `sms_tool` (multi-call) | `cricli` SMS commands. A send that fails on 5G SA is retried on LTE automatically (see 07) |
 
