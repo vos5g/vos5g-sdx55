@@ -56,13 +56,39 @@ The VPN → NetBird page installs NetBird's official ARM build (`linux_armv6`, a
 
 **Only one of Tailscale and NetBird can be installed.** Both use 100.64.0.0/10, so the pages and the backend refuse to install the second one. Start on boot works like Tailscale's (`ENABLED_ON_BOOT`, started by `vosclean apply`). The watch loop also adds NAT and MSS clamping on `wt0`, so devices behind the stick can reach NetBird routes.
 
+## WireGuard VPN client
+
+The VPN → WireGuard page connects the stick to any WireGuard server, such as a VPN provider (Mullvad, Proton, Privado and so on) or your own. Add a config by uploading the provider's `.conf` file, pasting it, or entering the details; the page can also generate the key pair on the stick. Configs can be edited and deleted, and one is connected at a time.
+
+* **Storage:** `/data/vosclean/wireguard/configs/<name>.conf`, root only. These are ordinary wg-quick files plus one `# QManager:` comment line with the stick's options. `ACTIVE` names the config to keep connected, at boot too. Private and preshared keys are never sent back to the browser.
+* **Not run:** `PostUp`, `PreDown` and the other wg-quick hooks run shell commands, so they are dropped on import, and the page lists what was left out.
+* **Service:** the tunnel runs from the QManager binary as its own unit, `vos-wg` (`qmanager-core wg-run`, started by `vosclean wg start`). Restarting QManager doesn't drop it. It re-adds its own rules when QCMAP flushes them. Its log is `/tmp/vosclean/log/wireguard.log`.
+
+**Per-config options:**
+
+* **Engine:** the kernel module or userspace (wireguard-go). The kernel engine loads the `wireguard` module group through vosclean's guarded loader. Forwarding downloads to a device behind the stick reached 39–48 Mbit/s with the kernel module and 13–16 with userspace.
+* **What uses the VPN:** either devices behind the stick, or those and the stick itself. AllowedIPs decides which destinations go through the tunnel: 0.0.0.0/0 means everything.
+  * The tunnel's own packets carry fwmark 0xca6c and always go out over mobile data.
+  * Tailscale's rules come first, so Tailscale keeps working in both modes.
+* **Kill switch:** each AllowedIPs range also gets an unreachable route under the tunnel route. If the tunnel or its service goes away, traffic for those ranges is dropped instead of going out over O2, until it reconnects or you disconnect.
+* **DNS:** with a `DNS =` line, dnsmasq's upstream queries (which every LAN device uses) go to that server through the tunnel, ahead of Custom DNS. Without one, Custom DNS stays in use.
+
+**Firewall:** connections coming in from the VPN side are dropped. Devices behind the stick are NATed to the tunnel address, with MSS clamping. Connecting or disconnecting resets the tracked connections of LAN devices, so existing connections restart on the new path, including ones the hardware fast path had taken over.
+
+**Tailscale and NetBird:** NetBird can't run while a WireGuard config is connected, because both change the stick's routing.
+
+* **100.64.0.0/10 addresses:** some providers hand these out, although Tailscale and NetBird use the same range. Such a config connects only while Tailscale and NetBird don't hold an address in that range, for example after you disconnect Tailscale.
+* **While it is connected:** Tailscale refuses to connect or start, and at boot Tailscale and NetBird skip their start-on-boot.
+
+IPv6 parts of a config (IPv6 addresses, `::/0`) are ignored, because the mobile side here is IPv4 only.
+
 ## Extra kernel modules
 
 The stick's kernel (4.14.117-perf) loads unsigned modules, so features it was built without can be added without touching the signed boot chain. The [vos5g-kmod](https://github.com/thalatamsainath/vos5g-kmod) repo builds them from Qualcomm's public SDX55 kernel on CodeLinaro (`LE.UM.4.4.2.r1-01400-SDX55`, the last SDX55 release still on 4.14.117), configured with the stick's own `/proc/config.gz`. Compal's own kernel changes aren't public. The script refuses to build if any built-in option would change, because a module compiled against a different structure layout than the running kernel would crash it.
 
 | Group (`MODULES=`) | Modules | What it gives |
 |---|---|---|
-| `wireguard` | udp_tunnel, ip6_udp_tunnel, wireguard (compat 1.0.20220627) | Kernel WireGuard. NetBird uses it when present; Tailscale never does |
+| `wireguard` | udp_tunnel, ip6_udp_tunnel, wireguard (compat 1.0.20220627) | Kernel WireGuard. NetBird and the WireGuard page's kernel engine use it; Tailscale never does |
 | `ipv6nat` | nf_nat_ipv6, nf_nat_masquerade_ipv6, ip6table_nat, ip6t_MASQUERADE | IPv6 NAT, masquerade and DNAT (e.g. IPv6 DNS redirection) |
 | `bbr` | tcp_bbr, sch_fq | BBR for the stick's own TCP connections (set as the default when loaded) |
 | `fqcodel` | sch_fq_codel | fq_codel queueing for traffic the CPU routes |
@@ -77,7 +103,7 @@ All 15 modules were loaded, used (real iptables/ip6tables rules, a WireGuard tun
 | Stick encrypts (sends into the tunnel) | about 114 Mbit/s | about 36 Mbit/s |
 | Stick decrypts (receives from the tunnel) | about 25–30 Mbit/s | about 48 Mbit/s |
 
-The kernel path is about three times faster when the stick sends, for example when it is an exit node serving downloads to remote peers. It is slower when the stick receives, for example when a device behind it downloads from a NAS over the tunnel; that path is CPU-bound in the single core's receive processing, and a larger network budget did not help. There is no NEON in kernel mode (`KERNEL_MODE_NEON` is off), so the module uses the scalar ARM cipher code.
+The kernel path is about three times faster when the stick sends, for example when it is an exit node serving downloads to remote peers. It is slower when the stick receives, for example when a device behind it downloads from a NAS over the tunnel; that path is CPU-bound in the single core's receive processing, and a larger network budget did not help. Those runs measured traffic that starts or ends on the stick. Traffic the stick forwards between a device behind it and the tunnel is a different case: the kernel module reached 39–48 Mbit/s there and wireguard-go 13–16, because userspace adds two copies through the TUN device for every packet. There is no NEON in kernel mode (`KERNEL_MODE_NEON` is off), so the module uses the scalar ARM cipher code.
 
 **Not possible as modules:**
 * **nftables:** `CONFIG_NF_TABLES` adds a member to `struct net`.

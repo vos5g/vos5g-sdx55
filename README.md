@@ -3,7 +3,7 @@
 This is a reference and step-by-step guide for owners of the **Tri Cascade VOS 5G USB dongle**. It also covers the bare **TRITOM / Tri Cascade SG500M2-X** M.2 module inside it, which is Compal's **RXM-G1** on a Qualcomm SDX55 / X55. It records what was found in the stock firmware and how to back the device up properly. It also gives you a reversible package that:
 
 * **hardens the device:** key-only root SSH, a WWAN-side firewall, the vendor's remote-update client blocked, RPC/NFS off, and stable SSH host keys;
-* **installs [QManager-GO](https://github.com/evairo176/qmanager)** as the web UI, ported from Quectel to this Compal module through a small translator (`qcmd`). You get signal and carrier aggregation, band, cell and 5G-ARFCN locks, the APN, SMS, a neighbour-cell scan, custom DNS, Tailscale, an AT terminal and more;
+* **installs [QManager-GO](https://github.com/evairo176/qmanager)** as the web UI, ported from Quectel to this Compal module through a small translator (`qcmd`). You get signal and carrier aggregation, band, cell and 5G-ARFCN locks, the APN, SMS, a neighbour-cell scan, custom DNS, Tailscale, NetBird, a WireGuard VPN client, an AT terminal and more;
 * **adds optional kernel features** (kernel WireGuard, IPv6 NAT, BBR, fq_codel, extra firewall matches) as modules for the stock kernel, built in the separate [vos5g-kmod](https://github.com/thalatamsainath/vos5g-kmod) repo and switched on and off in QManager;
 * **leaves the read-only system partition untouched.** Everything lives in `/data/vosclean`, starts from one line in a vendor boot script, and is removed with one command.
 
