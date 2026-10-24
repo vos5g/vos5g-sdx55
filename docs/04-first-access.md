@@ -34,10 +34,18 @@ On this firmware `/etc/shadow` is a bind mount from `/systemrw`, so the change p
 
 ## Read-only probe (optional)
 
-`tools/vos_readonly_probe.sh` collects a full read-only inventory: firmware, interfaces, `cricli` queries and Compal AT info commands. It's useful for comparing your unit with the one this guide was written on:
+`tools/vos_readonly_probe.sh` collects a full read-only inventory: firmware, interfaces, `cricli` queries and Compal AT info commands. It only reads; nothing is written, installed, started or stopped. Run it from your computer:
 
 ```bash
 ssh root@192.168.225.1 'sh -s' < tools/vos_readonly_probe.sh > probe.txt 2>&1
 ```
 
-The output includes your IMEI, ICCID and cell details. Don't post it unredacted.
+Compare yours with [the probe of the unit this guide was written on](reference/probe-VOS5-GC-1-326_0R19.txt): firmware `RXMG1.20.00.326_0R19`, RF card 681, Three UK, LTE B1 + B3. Differences in the firmware version, `RFC_ID`, `SKU` or the AT command answers are the ones that matter.
+
+The raw output includes your IMEI, IMSI, ICCID, serial numbers, IP addresses and cell location. To share it (in an issue, say), redact it first and read the result before posting:
+
+```bash
+sh tools/redact_probe.sh probe.txt > probe-redacted.txt
+```
+
+`redact_probe.sh` needs `perl` (built into macOS and nearly every Linux). It blanks those identifiers and keeps what's useful to compare: band, channel, PCI, signal levels and firmware details.

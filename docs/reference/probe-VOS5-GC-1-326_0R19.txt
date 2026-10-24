@@ -1,0 +1,988 @@
+probe start: Sat Oct 24 18:26:33 UTC 2026 uptime: 16092.04 11194.19
+
+##### cat /etc/version /oem/cei_module_ver_vos_id
+202412101209
+RXMG1.20.00.326.73_0R19
+## rc=0
+
+##### sh -c ip addr; echo; ip route; echo; ip -6 route | head -20
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback xx:xx:xx:xx:xx:xx brd xx:xx:xx:xx:xx:xx
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 <ipv6> scope host 
+       valid_lft forever preferred_lft forever
+2: sit0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN group default qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+3: rmnet_ipa0: <UP,LOWER_UP> mtu 9216 qdisc pfifo_fast state UNKNOWN group default qlen 1000
+    link/[519] 
+4: bridge0: <BROADCAST,MULTICAST,PROMISC,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether xx:xx:xx:xx:xx:xx brd xx:xx:xx:xx:xx:xx
+    inet 192.168.225.1/24 brd 192.168.225.255 scope global bridge0
+       valid_lft forever preferred_lft forever
+    inet6 <ipv6> scope link 
+       valid_lft forever preferred_lft forever
+5: ecm0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast master bridge0 state UP group default qlen 1000
+    link/ether xx:xx:xx:xx:xx:xx brd xx:xx:xx:xx:xx:xx
+    inet 169.254.3.1/24 brd 169.254.3.255 scope global ecm0
+       valid_lft forever preferred_lft forever
+    inet6 <ipv6> scope link 
+       valid_lft forever preferred_lft forever
+6: rndis0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc pfifo_fast master bridge0 state DOWN group default qlen 1000
+    link/ether xx:xx:xx:xx:xx:xx brd xx:xx:xx:xx:xx:xx
+7: rmnet_data0@rmnet_ipa0: <UP,LOWER_UP> mtu 1380 qdisc htb state UNKNOWN group default qlen 1000
+    link/[519] 
+    inet <public-ipv4>/30 scope global rmnet_data0
+       valid_lft forever preferred_lft forever
+8: rmnet_data1@rmnet_ipa0: <> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/[519] 
+9: rmnet_data2@rmnet_ipa0: <> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/[519] 
+10: rmnet_data3@rmnet_ipa0: <> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/[519] 
+11: rmnet_data4@rmnet_ipa0: <> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/[519] 
+12: rmnet_data5@rmnet_ipa0: <> mtu 1500 qdisc noop state DOWN group default qlen 1000
+    link/[519] 
+13: tailscale0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1280 qdisc pfifo_fast state UNKNOWN group default qlen 500
+    link/none 
+    inet <cgnat-ipv4>/32 scope global tailscale0
+       valid_lft forever preferred_lft forever
+    inet6 <ipv6> scope global 
+       valid_lft forever preferred_lft forever
+    inet6 <ipv6> scope link flags 800 
+       valid_lft forever preferred_lft forever
+
+default via <public-ipv4> dev rmnet_data0 
+<public-ipv4>/30 dev rmnet_data0  scope link 
+<public-ipv4> dev rmnet_data0  scope link  src <public-ipv4>  metric 10 
+<public-ipv4> dev rmnet_data0  scope link  src <public-ipv4>  metric 10 
+192.168.225.0/24 dev bridge0  proto kernel  scope link  src 192.168.225.1 
+
+local ::1 dev lo  proto kernel  metric 256 
+<ipv6> dev tailscale0  proto kernel  metric 256 
+<ipv6> dev bridge0  proto kernel  metric 256 
+<ipv6> dev tailscale0  proto kernel  metric 256 
+## rc=0
+
+##### df -h / /data /oem /systemrw /tmp
+Filesystem                Size      Used Available Use% Mounted on
+ubi0:rootfs             100.0M     88.8M     11.2M  89% /
+ubi0:usrfs               97.7M     23.4M     74.3M  24% /data
+/dev/ubi2_0              25.5M      4.0M     21.5M  16% /oem
+ubi0:systemrw             2.3M    172.0K      1.9M   8% /systemrw
+tmpfs                   111.3M    240.0K    111.0M   0% /tmp
+## rc=0
+
+##### free
+             total       used       free     shared    buffers     cached
+Mem:        227900     192364      35536       1036          4      55180
+-/+ buffers/cache:     137180      90720
+Swap:       102396          0     102396
+## rc=0
+
+##### sh -c for b in atcli cricli qmicli mbimcli socat curl wget iptables ip6tables ebtables opkg timeout logger sendmail; do printf "%-10s %s\n" $b "$(command -v $b)"; done
+atcli      /usr/bin/atcli
+cricli     /usr/bin/cricli
+qmicli     
+mbimcli    
+socat      
+curl       
+wget       /usr/bin/wget
+iptables   /usr/sbin/iptables
+ip6tables  /usr/sbin/ip6tables
+ebtables   /usr/sbin/ebtables
+opkg       /usr/bin/opkg
+timeout    /usr/bin/timeout
+logger     /usr/bin/logger
+sendmail   /usr/sbin/sendmail
+## rc=0
+
+##### sh -c ls -l /dev/smd* /dev/at_* /dev/ttyGS* /dev/net/tun 2>/dev/null
+crw-rw----    1 radio    radio     239,   0 Jan  1  1970 /dev/at_mdm0
+crw-rw----    1 radio    radio     499,   0 Jan  1  1970 /dev/at_usb0
+crw-rw----    1 radio    radio     499,   1 Jan  1  1970 /dev/at_usb1
+crw-rw-rw-    1 root     root       10, 200 Jan  1  1970 /dev/net/tun
+crw-------    1 root     root      239,   6 Jan  1  1970 /dev/smd11
+crw-------    1 root     root      239,   7 Jan  1  1970 /dev/smd21
+crw-------    1 root     root      239,   8 Jan  1  1970 /dev/smd22
+crw-------    1 radio    radio     239,   4 Jan  1  1970 /dev/smd7
+crw-rw-r--    1 radio    radio     239,   5 Jan  1  1970 /dev/smd8
+crw-r-----    1 radio    radio     239,   1 Jan  1  1970 /dev/smdcntl0
+crw-r-----    1 radio    radio     239,   2 Jan  1  1970 /dev/smdcntl1
+crw-------    1 radio    radio     239,   3 Jan  1  1970 /dev/smdcntl8
+crw-rw----    1 radio    radio     510,   0 Jan  1  1970 /dev/ttyGS0
+## rc=0
+
+##### sh -c cat /etc/usb/boot_hsusb_comp; ls /sys/kernel/config/usb_gadget/*/functions 2>/dev/null
+9063
+cser.dun.0
+cser.nmea.1
+diag.diag
+diag.diag_mdm
+ffs.adb
+gser.0
+gsi.dpl
+gsi.ecm
+gsi.gps
+gsi.mbim
+gsi.rmnet
+gsi.rndis
+mass_storage.0
+mass_storage.1
+qdss.qdss
+qdss.qdss_mdm
+uac1.uac1
+## rc=0
+
+##### sh -c lighttpd -V | head -2; grep -E "server.port|server.modules|ssl.engine|auth" /etc/lighttpd.conf | grep -v "^ *#" | head -20
+lighttpd/1.4.51 (ssl) - a light and fast webserver
+
+server.modules              = (
+                                "mod_auth",
+                server.port                 = 80
+                auth.debug                  = 2
+                auth.backend                = "plain"
+                auth.backend.plain.userfile = "/data/www/lighttpd.user"
+ ssl.engine = "enable"
+                auth.debug                  = 2
+                auth.backend                = "plain"
+                auth.backend.plain.userfile = "/data/www/lighttpd.user"
+## rc=0
+
+##### sh -c systemctl is-active sshd.socket rpcbind.socket rpcbind nfs-server fotaclient.timer lighttpd 2>&1
+active
+inactive
+inactive
+inactive
+inactive
+active
+## rc=0
+
+##### cricli
+CRI CLI usage: 
+
+    cricli <command> <params>
+
+         rc: Return code of this CRI request.
+      error: Error code of this CRI request from modem side.
+
+>>> The '**' symbol means you can type 'cricli <command> help' to get help message. <<<
+
+QCMAP (Qualcomm Mobile AP)
+    wwan_status: Queries the connecton status of WWAN interface.
+    wwan_stats: Queries the bytes, packets & dropped packets of TX/RX.
+    wwan_config: Queries the IPV4/IPV6 IP address & DNS config.
+    get_ipv4_state: Queries the 'ipv4 state' flag of QCMAP.
+    enable_ipv4: Enable the 'ipv4 state' flag of QCMAP.
+    disable_ipv4: Disable the 'ipv4 state' flag of QCMAP.
+    get_ipv6_state: Queries the 'ipv4 state' flag of QCMAP.
+    enable_ipv6: Enable the 'ipv6 state' flag of QCMAP.
+    disable_ipv6: Disable the 'ipv6 state' flag of QCMAP.
+    get_nat_type: Queries the type of NAT.
+ ** set_nat_type <type>: Configure the type of NAT.
+    dhcp_client_list: Queries all DHCP client list.
+    get_backhaul_state: get backhaul state
+    backhaul_connect <call type>: connect the backhaul (1: IPv4; 2: IPv6).
+    backhaul_disconnect <call type>: disconnect the backhaul (1: IPv4; 2: IPv6).
+
+QCMAP Firewall (Qualcomm Mobile AP)
+    get_fw_state: Queries the 'Firewall' state.
+    set_fw_state <1: On, other: Off>: Set the 'Firewall' state.
+    get_fw_rule_list: Queries all firewall rules of IPV4/IPV6.
+ ** add_fw_entry <ip family> <ipv4/ipv6 addr> <ipv4 subnet mask/ipv6 prefix len> <protocol>: Add the IPv4/IPv6 firewall rule.
+    del_fw_entry <handle>: Delete the IPv4/IPv6 firewall rule by handle.
+
+QCMAP DMZ (Qualcomm Mobile AP)
+    dmz_config: Queries the DMZ configuration.
+    enable_dmz <ip address>: Enable the DMZ with IPv4 address.
+    disable_dmz: Disable the DMZ.
+
+QCMAP Gateway URL (Qualcomm Mobile AP)
+    get_gateway_url: Queries the gateway URL.
+    set_gateway_url <gateway url>: Set the gateway URL.
+
+QCMAP Lan Config (Qualcomm Mobile AP)
+    get_lan_config: Queries the LAN config.
+ ** set_lan_config <gateway> <netmask> <dhcp enable> <dhcp start ip> <dhcp end ip> <dhcp lease time>: Set the LAN config.
+    activate_lan: Reload the LAN config
+
+QCMAP Port Forwarding (Qualcomm Mobile AP)
+    get_port_fw_config: Queries all port forwarding rules.
+ ** add_port_fw_entry <ip> <private port> <global port> <protocol>: Add the port forwarding rule.
+ ** del_port_fw_entry <ip> <private port> <global port> <protocol>: Remove the port forwarding rule.
+
+QCMAP State (Qualcomm Mobile AP)
+    get_web_access_state:  Queries the 'WWAN WEB access' flag.
+    set_web_access_state <1: On, other: Off>: Set the 'WWAN WEB access' flag.
+    get_auto_connect_state: Queries the 'auto connect' flag.
+    set_auto_connect_state <1: On, other: Off>: Configure the 'auto connect' flag.
+    get_roaming_state: Queries the 'roaming' flag.
+    set_roaming_state <1: On, other: Off>: Configure the 'roaming' flag.
+    get_ipsec_vpn_passthrough_state: Queries the 'IPSEC VPN passthrough' flag.
+    set_ipsec_vpn_passthrough_state <1: On, other: Off>: Set the 'IPSEC VPN passthrough' flag.
+    get_pptp_vpn_passthrough_state: Queries the 'PPTP VPN passthrough' flag.
+    set_pptp_vpn_passthrough_state <1: On, other: Off>: Set the 'PPTP VPN passthrough' flag.
+    get_l2tp_vpn_passthrough_state: Queries the 'L2TP VPN passthrough' flag.
+    set_l2tp_vpn_passthrough_state <1: On, other: Off>: Set the 'L2TP VPN passthrough' flag.
+
+QCMAP IP Pass-Through (Qualcomm Mobile AP)
+    connected_device_mac: Get mac address of connected device (by Ethernet port only)
+    enable_ippassthrough <mac address>: Enable IP pass-through (Ethernet type)
+    disable_ippassthrough: Disable ip passthrough
+    get_ippassthrough_config: Queries configurations of IP passthrough
+    get_ippassthrough_state: Queries state of IP passthrough
+    get_ippassthrough_without_nat_state: Queries the 'IP passthrough without NAT' state
+    set_ippassthrough_without_nat_state <1: On, other: Off>: Set the 'IP passthrough without NAT' state
+ ** enable_ippassthrough_v2 <device type> <hostname|mac address>: Enable IP passthrough (USB or Ethernet type)
+    get_ippassthrough_config_v2: Queries configurations of IP passthrough
+
+QCMAP WWAN policy (Qualcomm Mobile AP)
+    get_wwan_policy_list: List all wwan policy.
+    set_pref_wwan_policy <handle>: Set preferred wwan policy.
+    add_wwan_policy <v4 profile id> <v6 profile id>: Create new wwan policy.
+    del_wwan_policy: Delete current wwan policy (set preferred policy first).
+    set_wwan_policy <v4 profile id> <v6 profile id>: Update the wwan policy (set preferred policy first).
+
+QCMAP VLAN (Qualcomm Mobile AP)
+    add_vlan <interface type> <vlan id>: Create vlan (interface type: 0-ETH, 1-ECM, 2-RNDIS).
+    del_vlan <interface type> <vlan id>: Delete vlan (interface type: 0-ETH, 1-ECM, 2-RNDIS).
+    get_vlan_list: Queries current vlan configurations.
+
+QCMAP Policy Mapping VLAN (Qualcomm Mobile AP)
+    add_policy_mapping_vlan <policy handle> <vlan id>: Create policy mapping to vlan rule.
+    del_policy_mapping_vlan <policy handle> <vlan id>: Delete policy mapping to vlan rule.
+    get_policy_mapping_vlan_list: Queries current wwan policy mapping vlan configurations.
+
+QCMAP Bridge (Qualcomm Mobile AP)
+    get_bridge_list: List all bridge and indicate the current bridge context.
+    set_pref_bridge: Set the preferred bridge context.
+
+QCMAP Bringup/Teardown WWAN (Qualcomm Mobile AP)
+    bringup_wwan <policy handle> <call type>: Bringup the WWAN by policy handle (1: IPv4; 2: IPv6).
+    teardown_wwan <policy handle> <call type>: Teardown the WWAN by policy handle (1: IPv4; 2: IPv6).
+
+UIM (User Identity Module)
+    card_status: Queires the card status of device.
+    enable_pin <pin1>: Enable the PIN1 protection.
+    disable_pin <pin1>: Disable the PIN1 protection.
+    verify_pin <pin1>: Verify the PIN1 protection.
+    change_pin <old pin1> <new pin1>: Change the PIN1 code of device (PIN1 must enabled).
+    unblock_pin <puk1> <new pin1>: Unblock and reset the PIN1 code.
+    iccid: Read the content of EF_ICCID.
+    imsi: Read the content of EF_IMSI.
+    msisdn: Show the title/number of EF_MSISDN.
+    sim_mccmnc: Queries the SIM's MCC/MNC
+    slot_status: Queries the slot status
+    set_pref_card_slot <slot>: Set which physical card slot as perf SIM (1: pref by phy slot one, 2: pref by phy slot two).
+ ** read_binary <file id> <path>: Read the binary data from transparent file.
+ ** file_attrib <file id> <path>: Queries the file attribute.
+ ** read_record <file id> <path> <record no>: Read the content of record.
+
+DMS (Device Manager Service)
+    imei: Queries the IMEI of device.
+    op_mode: Queries the modem operating mode.
+    rat_cap: Queries the RAT capability of device.
+    band_cap: Queries the band capability of device.
+    set_op_mode <op mode>: Configure the operating mode of modem. (0: Onlie; 1: Low PowerMode)
+
+DSD (Data System Determination)
+    roaming: Queries the roaming status of device.
+    rat: Queries the current radio access tech of device.
+
+NAS (Network Access Service)
+    signal: Queries the current signal information.
+    band: Queries the current RF band info of device.
+    ca: Queries the CA info of device.
+    operator: Queries the mcc, mnc & operator name.
+    cell_location: Queries the current cell location info of device.
+    attach_state: Queries the PS/CS attach status of device.
+    get_pref_rat: Queries the preferred radio access tech (network type) of device.
+ ** set_pref_rat <rat>: Set the preferred radio access tech.
+    get_cell_config: Queries the preferred cell config of device.
+ ** set_cell_config <pci 1> <freq 1> ... <pci 30> <freq 30>: Set the preferred cell config.
+    tx_power <rat>: Tx power value in dbm (UMTS: 5, LTE: 8, NR5G: 12).
+    get_nr5g_cell_config: Queries the NR5G preferred cell config of device.
+ ** set_nr5g_cell_config <type> <parameters 1> ... <parameters n>: Set the NR5G preferred cell config
+    get_registration_state: Query network registration state.
+    set_ps_attach: Set PS attach.
+    set_ps_detach: Set PS detach.
+    get_nitz: Get Network Time Info.
+    get_pref_band: Queries the preferred band.
+    get_nr5g_mode: Gets the NR5G mode.
+    set_nr5g_mode: Sets the NR5G mode.
+ ** set_pref_band <op code> <band bitmask 1> <band bitmask 2> ... <band bitmask 5>: Set the preferred band.
+    get_lte_band_pri: Gets the list of priority LTE bands
+    set_lte_band_pri <band 1> <band 2> ... <band 128>: Sets the priority for LTE bands
+    get_nr5g_band_pri: Gets the list of priority NR5G bands
+    set_nr5g_band_pri <band 1> <band 2> ... <band 512>: Sets the priority for NR5G bands
+    get_rrc_state: Queries the RRC state
+
+WDS (Wireless Data Service)
+    get_profile: Queries all profile settings.
+ ** set_profile <id> <name> <apn> <username> <password> <pdp> <auth>: Modify profile settings.
+ ** add_profile <name> <apn> <username> <password> <pdp> <auth>: Create profile settings.
+    del_profile <profile id>: Delete profile settings.
+    get_conn_state: Queries the current connection state.
+
+WMS (Wireless Message Service)
+    get_msg_list <storage>: Queries all SMS from storage (0: SIM, 1:NV).
+    send_sms <destination number> <message content>: Send the SMS to destination number.
+    del_sms <storage> <idx>: Delete the SMS of storage by index number ('storage' 0:SIM, 1:NV, 'idx' arg is start from zero).
+    sms_capacity <storage>: Queries the capacity of SMS (0: SIM, 1:NV).
+
+TS (Thermal Sensor)
+    sensors: Queries the sensor list
+ ** temperature <sensor id> <seq num>: Queries the current temperature
+ ** temperature_notify <sensor id> <high threshold> <low threshold> <seq num>: Set the HIGH/LOW temperature for notification.
+## rc=0
+
+##### cricli signal
+rc: 0, error: 0
+LTE rssi: -80, rsrq: -11, rsrp: -108, snr: 11
+## rc=0
+
+##### cricli band
+rc: 0, error: 0
+RAT    Channel  Band                        Bandwidth
+-----  -------  --------------------------  ------------------------------------
+LTE         99  LTE Band 1                  NAS_LTE_BW_NRB_50 (3) – LTE 10 MHz
+## rc=0
+
+##### cricli band_cap
+rc: 0, error: 0
+Band capability:
+  Band class 0, A-system
+  Band class 0, B-system
+  Band class 1, all blocks
+  Band class 10
+  WCDMA (Europe, Japan and China) 2100 band
+  WCDMA US PCS 1900 band
+  WCDMA (Europe and China) DCS 1800 band
+  WCDMA US 1700 band
+  WCDMA US 850 band
+  QWCDMA Japan 800 band
+  WCDMA Europe and Japan 900 band
+  WCDMA Japan 1700 band
+  WCDMA Japan 850 band
+
+LTE band capability:
+  LTE EUTRAN Band 1 UL:1920-1980; DL: 2110-2170
+  LTE EUTRAN Band 2 UL:1850-1910; DL: 1930-1990
+  LTE EUTRAN Band 3 UL:1710-1785; DL: 1805-1880
+  LTE EUTRAN Band 4 UL:1710-1755; DL: 2110-2155
+  LTE EUTRAN Band 5 UL: 824-849; DL: 869-894
+  LTE EUTRAN Band 7 UL:2500-2570; DL: 2620-2690
+  LTE EUTRAN Band 8 UL: 880-915; DL: 925-960
+  LTE EUTRAN Band 12 UL:698-716; DL: 728-746
+  LTE EUTRAN Band 13 UL: 777-787; DL: 746-756
+  LTE EUTRAN Band 14 UL: 788-798; DL: 758-768
+  LTE EUTRAN Band 17 UL: 704-716; DL: 734-746
+  LTE EUTRAN Band 18 UL: 815-830; DL: 860-875
+  LTE EUTRAN Band 19 UL: 830-845; DL: 875-890
+  LTE EUTRAN Band 20 UL: 832-862; DL: 791-821
+  LTE EUTRAN Band 25 UL: 1850-1915; DL: 1930-1995
+  LTE EUTRAN Band 26 UL: 814-849; DL: 859-894
+  LTE EUTRAN Band 28 UL: 703-748; DL: 758-803
+  LTE EUTRAN Band 29 UL: 1850-1910 or 1710-1755; DL: 716-728
+  LTE EUTRAN Band 30 UL: 2305-2315; DL: 2350-2360
+  LTE EUTRAN Band 32 DL: 9920-10359
+  LTE EUTRAN Band 34 UL: 2010-2025; DL: 2010-2025
+  LTE EUTRAN Band 38 UL: 2570-2620; DL: 2570-2620
+  LTE EUTRAN Band 39 UL: 1880-1920; DL: 1880-1920
+  LTE EUTRAN Band 40 UL: 2300-2400; DL: 2300-2400
+  LTE EUTRAN Band 41 UL: 2496-2690; DL: 2496-2690
+  LTE EUTRAN Band 42 UL: 3400-3600; DL: 3400-3600
+  LTE EUTRAN Band 43 UL: 3600-3800; DL: 3600-3800
+  LTE EUTRAN Band 46 DL: 5150-5925
+  LTE EUTRAN Band 66 UL: 1710-1780; DL: 2110-2200
+
+NR5G band capability:
+  NR5G Band 1 UL: 1920-1980; DL: 2110-2170; FDD
+  NR5G Band 2 UL: 1850-1910; DL: 1930-1990; FDD
+  NR5G Band 3 UL: 1710-1785; DL: 1805-1880; FDD
+  NR5G Band 5 UL: 824-849; DL: 869-894; FDD
+  NR5G Band 7 UL: 2500-2570; DL: 2620-2690; FDD
+  NR5G Band 8 UL: 880-915; DL: 925-960; FDD
+  NR5G Band 12 UL: 729-746; DL: 699-716; FDD
+  NR5G Band 14 UL: 758-768; DL:788-798; FDD
+  NR5G Band 20 UL: 832-862; DL: 791-821; FDD
+  NR5G Band 25 UL: 1930-1995; DL: 1850-1915; FDD
+  NR5G Band 28 UL: 703-748; DL: 758-803; FDD
+  NR5G Band 38 UL: 2570-2620; DL: 2570-2620; TDD
+  NR5G Band 40 UL: 2300-2400; DL: 2300-2400; TDD
+  NR5G Band 41 UL: 2496-2690; DL: 2496-2690; TDD
+  NR5G Band 48 UL: 3550-3700; DL: 3550-3700; TDD
+  NR5G Band 66 UL: 1710-1780; DL: 2110-2200; FDD
+  NR5G Band 71 UL: 663-698; DL: 617-652; FDD
+  NR5G Band 77 UL: 3300-4200; DL: 3300-4200; TDD
+  NR5G Band 78 UL: 3300-3800; DL: 3300-3800; TDD
+  NR5G Band 79 UL: 4400-5000; DL: 4400-5000; TDD
+
+## rc=0
+
+##### cricli cell_location
+rc: 0, error: 0
+---------- LTE Info ----------
+mcc: 234
+mnc: 20
+rrc state: 1
+global cell id: <redacted>
+serving cell id: <redacted>
+afcn: 99
+tac: <redacted>
+pci: 31
+rsrq:-9
+rsrp:-104
+rssi:-77
+
+ID  AFCN   PCI  RSRQ  RSRP  RSSI
+--  -----  ---  ----  ----  ----
+ 0  1363   13   -14   -106  -83 
+ 1  1363   72   -16   -111  -83 
+ 2  1363   179  -19   -112  -83 
+
+---------- NR5G Info ----------
+mcc: 
+mnc: 
+afrcn: 0
+tac: <redacted>
+global cell id: <redacted>
+pci: 0
+rsrq:0
+rsrp:0
+snr:0
+## rc=0
+
+##### cricli get_cell_config
+rc: 0, error: 0
+## rc=0
+
+##### cricli get_nr5g_cell_config
+rc: 0, error: 0
+NR5G cell config type: UNLOCK
+## rc=0
+
+##### cricli get_pref_band
+rc: 0, error: 0
+Band Pref:
+  bit 1 ~ 64: 0x7FFFFFFFBFFFFFFF
+
+LTE Band Pref:
+  bit   1 ~  64: 0x0001E7FFFFDF3FFF
+
+NR5G NSA Band Pref:
+  bit   1 ~  64: 0x000081A0090808D7
+  bit  65 ~ 128: 0x0000000000007042
+  bit 129 ~ 192: 0x0000000000000000
+  bit 193 ~ 256: 0x0000000000000000
+  bit 257 ~ 320: 0x000000000000001B
+
+NR5G SA Band Pref:
+  bit   1 ~  64: 0x00008120090808D7
+  bit  65 ~ 128: 0x0000000000007042
+  bit 129 ~ 192: 0x0000000000000000
+  bit 193 ~ 256: 0x0000000000000000
+  bit 257 ~ 320: 0x0000000000000000
+
+## rc=0
+
+##### cricli get_nr5g_mode
+rc: 0, error: 0
+NR5G Mode: 0
+## rc=0
+
+##### cricli get_lte_band_pri
+rc: 0, error: 0
+ Configured Band Priority List (0):
+
+ Supported Band Priority List (28):
+  - LTE Band 1 (120)
+  - LTE Band 2 (121)
+  - LTE Band 3 (122)
+  - LTE Band 4 (123)
+  - LTE Band 5 (124)
+  - LTE Band 7 (126)
+  - LTE Band 8 (127)
+  - LTE Band 12 (131)
+  - LTE Band 13 (132)
+  - LTE Band 14 (133)
+  - LTE Band 17 (134)
+  - LTE Band 18 (143)
+  - LTE Band 19 (144)
+  - LTE Band 20 (145)
+  - LTE Band 25 (148)
+  - LTE Band 26 (153)
+  - LTE Band 28 (158)
+  - LTE Band 30 (160)
+  - LTE Band 34 (136)
+  - LTE Band 38 (140)
+  - LTE Band 39 (141)
+  - LTE Band 40 (142)
+  - LTE Band 41 (149)
+  - LTE Band 42 (150)
+  - LTE Band 43 (151)
+  - LTE Band 48 (168)
+  - LTE Band 66 (161)
+  - LTE Band 71 (166)
+
+## rc=0
+
+##### cricli get_nr5g_band_pri
+rc: 1, error: 1
+## rc=0
+
+##### atcli ATI
+ATI
+Manufacturer: Tri Cascade Inc.
+Model: SG500M2-X
+Revision: RXMG1.20.00.326_0R05
+SVN: 02
+IMEI: <redacted>
++GCAP: +CGSM
+
+OK
+## tries=1
+
+##### atcli AT+PRODUCTINFO
+AT+PRODUCTINFO
+Model:VOS5-GC-1
+SW_VERSION: RXMG1.20.00.326_0R05
+RFC_ID: 681
+MMW_RFC_ID: 0
+SN number: <redacted>
+IMEI: <redacted>
+IMSI: <redacted>
+HW_VERSION: 1.0
+SN number2: <redacted>
+QCN_VERSION:ZX56_681_0.92-12
+SKU: RXM-G1 BR23
+
+OK
+## tries=1
+
+##### atcli AT+BINFO
+AT+BINFO
+<LTE PCC INFO>:EARFCN 99,TAC <redacted>
+Serving Cell ID <redacted>,physical cell ID 31
+BAND 1,dl_bandwidth 3,ul_bandwidth 3
+RX Power Info:
+RSRQ -11 dB, RSRP -108 dBm,SINR 9 dB
+RX0 power: -78 dBm
+RX0 ecio: -10 dB
+RX0 rsrp: -105 dBm
+RX0 phase: 0 degree
+RX0 sinr: 9 dB
+RX0 cinr: 7 dB
+RX1 power: -81 dBm
+RX1 ecio: -9 dB
+RX1 rsrp: -107 dBm
+RX1 phase: 0 degree
+RX1 sinr: 12 dB
+RX1 cinr: 10 dB
+RX2 power: 0 dBm
+RX2 ecio: -3 dB
+RX2 rsrp: -256 dBm
+RX2 phase: 0 degree
+RX2 sinr: 9 dB
+RX2 cinr: 255 dB
+RX3 power: 0 dBm
+RX3 ecio: -3 dB
+RX3 rsrp: -256 dBm
+RX3 phase: 0 degree
+RX3 sinr: 6 dB
+RX3 cinr: 255 dB
+TX POWER INFO:
+tx_pwr: 19 dBm,pa_gain_state 0
+prach 19,srs 190,pucch 20,pusch160
+LTE Modulation:
+uplink modulation num_layer  1 num_mimo_layers 0 num_config_layers 0
+uplink modulation layer 0  16QAM
+uplink modulation layer 1  BPSK
+downlink modulation num_layer  1 num_mimo_layers 1 num_config_layers 2
+downlink modulation layer 0  64QAM
+downlink modulation layer 1  BPSK
+PCC CQI 12 0
+LTE RRC STATE:CONNECTED
+
+
+OK
+## tries=1
+
+##### atcli AT+BNRINFO
+AT+BNRINFO
+NR service is not available
+NR5G RRC STATE:UNKNOWN
+
+
+OK
+## tries=1
+
+##### atcli AT+LCAINFO
+AT+LCAINFO
++LCAINFO:
+CA enable:1
+PCC   Band:1 RSRP:-107 dbm
+SCC 1 Band:3 RSRP:-106 dbm
+SCC 2 Band:<NA> RSRP:<NA> dbm
+SCC 3 Band:<NA> RSRP:<NA> dbm
+SCC 4 Band:<NA> RSRP:<NA> dbm
+SCC 5 Band:<NA> RSRP:<NA> dbm
+SCC 6 Band:<NA> RSRP:<NA> dbm
+SCC 7 Band:<NA> RSRP:<NA> dbm
+
+
+OK
+## tries=1
+
+##### atcli AT+NRCAINFO
+AT+NRCAINFO
+OK
+## tries=1
+
+##### atcli AT+BCONFIG?
+AT+BCONFIG?
+GW band prefer:
+7fffffffbfffffff
+LTE band prefer:
+1e7ffffdf3fff
+0
+NSA/SA Disable mode: 0
+SA Band Prefer:
+8120090808d7
+7042
+0
+0
+0
+NSA Band Prefer:
+81a0090808d7
+7042
+0
+0
+1b
+ignore rplmn act: disable
+l2nr search optimization: disable
+Support SA/NSA roaming
+SVN:2
+LTE BAND_PRIORITY:NOT CONFIGURED
+
+
+OK
+## tries=1
+
+##### atcli AT+USBCOMP?
+AT+USBCOMP?
++USBCOMP? = user(9063)
+
+OK
+## tries=1
+
+##### atcli AT+CESQ
+AT+CESQ
++CESQ:  99, 99, 255, 255, 20, 34, 255, 255, 255
+
+OK
+## tries=1
+
+##### atcli AT+CSQ
+AT+CSQ
++CSQ: 17,99
+
+OK
+## tries=1
+
+##### atcli AT+COPS?
+AT+COPS?
++COPS: 0,0,"3",7
+
+OK
+## tries=1
+
+##### atcli AT+CEREG?
+AT+CEREG?
++CEREG: 0,1
+
+OK
+## tries=1
+
+##### atcli AT+C5GREG?
+AT+C5GREG?
++C5GREG: 0,0
+
+OK
+## tries=1
+
+##### atcli AT$QCSYSMODE?
+AT$QCSYSMODE?
+LTE
+
+OK
+## tries=1
+
+##### atcli AT$QCRSRP?
+AT$QCRSRP?
+$QCRSRP: 031,99,"-104.90",013,1363,"-105.70",072,1363,"-112.90",179,1363,"-112.10"
+
+OK
+## tries=1
+
+##### atcli AT$QCRSRQ?
+AT$QCRSRQ?
+$QCRSRQ: 031,99,"-10.00",013,1363,"-11.60",072,1363,"-20.00",179,1363,"-20.00"
+
+OK
+## tries=1
+
+##### atcli AT+CPMS?
+AT+CPMS?
++CPMS: "ME",0,255,"ME",0,255,"ME",0,255
+
+OK
+## tries=1
+
+##### atcli AT+CMGF?
+AT+CMGF?
++CMGF: 0
+
+OK
+## tries=1
+
+##### atcli AT+CNMI?
+AT+CNMI?
++CNMI: 0,0,0,0,0
+
+OK
+## tries=1
+
+##### atcli AT+CGDCONT?
+AT+CGDCONT?
++CGDCONT: 1,"IPV4V6","3internet","0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0",0,0,0,0,,,,,,,,,"",,,,0
+
+OK
+## tries=1
+
+##### atcli AT+5GDISP?
+AT+5GDISP?
+Upperlayer Ind:0
+RestrictDCNR:0
+ENDC ENABLED on the device:1
+Serving network:LTE 
+
+
+OK
+## tries=1
+
+##### atcli AT+BINFO=?
+AT+BINFO=?
+<LTE PCC INFO>:EARFCN 99,TAC <redacted>
+Serving Cell ID <redacted>,physical cell ID 31
+BAND 1,dl_bandwidth 3,ul_bandwidth 3
+RX Power Info:
+RSRQ -10 dB, RSRP -107 dBm,SINR 9 dB
+RX0 power: -76 dBm
+RX0 ecio: -11 dB
+RX0 rsrp: -104 dBm
+RX0 phase: 0 degree
+RX0 sinr: 9 dB
+RX0 cinr: 7 dB
+RX1 power: -79 dBm
+RX1 ecio: -11 dB
+RX1 rsrp: -107 dBm
+RX1 phase: 0 degree
+RX1 sinr: 12 dB
+RX1 cinr: 10 dB
+RX2 power: 0 dBm
+RX2 ecio: -3 dB
+RX2 rsrp: -256 dBm
+RX2 phase: 0 degree
+RX2 sinr: 9 dB
+RX2 cinr: 255 dB
+RX3 power: 0 dBm
+RX3 ecio: -3 dB
+RX3 rsrp: -256 dBm
+RX3 phase: 0 degree
+RX3 sinr: 6 dB
+RX3 cinr: 255 dB
+TX POWER INFO:
+tx_pwr: 21 dBm,pa_gain_state 0
+prach 19,srs 210,pucch 80,pusch200
+LTE Modulation:
+uplink modulation num_layer  1 num_mimo_layers 0 num_config_layers 0
+uplink modulation layer 0  16QAM
+uplink modulation layer 1  BPSK
+downlink modulation num_layer  1 num_mimo_layers 1 num_config_layers 2
+downlink modulation layer 0  QPSK
+downlink modulation layer 1  BPSK
+PCC CQI 10 0
+LTE RRC STATE:CONNECTED
+
+
+OK
+## tries=1
+
+##### atcli AT+BCONFIG=?
+AT+BCONFIG=?
+OK
+## tries=1
+
+##### atcli AT+CEISWITCHSIM?
+AT+CEISWITCHSIM?
+Physical SIM SLOT 1 maps to SIM1,SIM inserted 1, SIM CD pin detects SIM inserted 1
+Physical SIM SLOT 1 hotswap polarity 1,Physical SIM SLOT 2 hotswap polarity 1
+
+
+OK
+## tries=1
+
+##### atcli AT+QCVER
+AT+QCVER
++QCVER: MPSS.HI.2.0.c3.5-00010-SDX55_CPEALL_PACK-1.22895.6
+
+OK
+## tries=1
+
+##### atcli AT+CEITHERM?
+AT+CEITHERM?
+1.pa level:0
+2.pa_fr1 level:0
+3.modem level:0
+4.mmw0 level:0
+5.mmw1 level:0
+6.mmw2 level:0
+7.mmw3 level:0
+
+
+OK
+## tries=1
+
+##### atcli AT+CEISAR?
+AT+CEISAR?
+SAR DSI = 0
+
+OK
+## tries=1
+
+##### atcli AT+CESQDBM
+AT+CESQDBM
++CESQDBM:
+SYSTEM:LTE
+LTE Band 1
+LTE: RSRQ -10 dB, RSRP -107 dBm
+
+
+OK
+## tries=1
+
+##### atcli AT+ANTSWITCH?
+AT+ANTSWITCH?
+LTE SINGLE CHAIN ENABLED:0
+RX0:NA
+RX1:NA
+RX2:NA
+RX3:NA
+NR SINGLE CHAIN ENABLED:0
+RX0:NA
+RX1:NA
+RX2:NA
+RX3:NA
+
+
+OK
+## tries=1
+
+##### atcli AT+BNMEA?
+AT+BNMEA?
+NMEA report enabled 0, Sentence Enabled 20000,GPS POSITION REPORT ENABLED 0
+
+OK
+## tries=1
+
+##### atcli AT+BGPSPRM?
+AT+BGPSPRM?
+SUPL IPV4:<unavailable>, Port:<unavailable>
+SUPL URL:supl.google.com:7276
+SUPL Security:Disabled
+
+OK
+## tries=1
+
+##### atcli AT+BATLOG?
+AT+BATLOG?
+BAT_LOG HAS 0 logs
+
+
+OK
+## tries=1
+
+##### sh -c cat /firmware/image/Ver_Info.txt; ls /firmware/image/modem_pr/so
+{
+    "Image_Build_IDs": {
+        "aop": "AOP.HO.2.0.2-00093-SDX55AAAAANAZO-1", 
+        "apps": "LE.UM.4.3.3.r1-03500-SDX55-2", 
+        "boot": "BOOT.SBL.4.1-00231-SDX55MAAAAANAZB-2", 
+        "boot_uefi": "BOOT.UEFI.4.0-00200-SDX55LEZB-2", 
+        "btfm": "BTFM.HST.2.0.0-00710-QCACHROMZ-1", 
+        "common": "SDX55.LE.1.2.r1-00027-NBOOT.CPE.NEFS.PROD-2", 
+        "glue": "GLUE.SDX55_LE.1.2-00054-NOOP_TEST-1", 
+        "modem": "MPSS.HI.2.0.c3.5-00010-SDX55_CPEALL_PACK-1", 
+        "tz": "TZ.FU.5.9-00147-SDX55AAAAANAZT-2", 
+        "wlan_hst": "WLAN.HST.1.0.1.c2-00359-QCAHSTSWPLZ_V2_TO_X86-1"
+    }, 
+    "Metabuild_Info": {
+        "Meta_Build_ID": "SDX55.LE.1.2.r1-00027-NBOOT.CPE.NEFS.PROD-2", 
+        "Product_Flavor": "[None]", 
+        "Time_Stamp": "2024-12-10 14:15:20"
+    }, 
+    "Version": "1.0"
+}549_0_2.mbn
+622_0.mbn
+641_0_0.mbn
+642_0_0.mbn
+643_0_0.mbn
+643_1_0.mbn
+643_2_0.mbn
+644_0_0.mbn
+644_1_0.mbn
+644_2_0.mbn
+646_0_0.mbn
+653_0.mbn
+654_0.mbn
+655_0.mbn
+656_0.mbn
+657_0.mbn
+658_0.mbn
+659_0.mbn
+660_0.mbn
+661_0.mbn
+663_0.mbn
+670_0_0.mbn
+670_1_0.mbn
+670_2_0.mbn
+671_0_0.mbn
+671_1_0.mbn
+671_2_0.mbn
+672_0_0.mbn
+672_1_0.mbn
+672_2_0.mbn
+673_0_0.mbn
+673_1_0.mbn
+673_2_0.mbn
+674_1_0.mbn
+674_2_0.mbn
+675_1_0.mbn
+675_2_0.mbn
+676_1_0.mbn
+676_2_0.mbn
+677_1_0.mbn
+677_2_0.mbn
+678_1_0.mbn
+678_2_0.mbn
+679_1_0.mbn
+679_2_0.mbn
+680_1_0.mbn
+680_2_0.mbn
+681_1_0.mbn
+681_2_0.mbn
+## rc=0
+
+probe end: Sat Oct 24 18:26:37 UTC 2026
