@@ -171,10 +171,21 @@ ui_pass() {
   log "web UI password set"; echo "Saved."; do_ui
 }
 
-do_time() { # modem boots at 1970: take UTC time from the network (NITZ) if the clock is unset
+# The modem has no battery-backed clock and boots at 1970. Take UTC time from
+# the mobile network (NITZ) if it sends one; not every network does, and only
+# at registration, so fall back to NTP over the data connection. Runs at
+# apply and from the per-minute watch until the clock is set.
+TIME_NTP=${TIME_NTP:-"pool.ntp.org time.google.com time.cloudflare.com"}
+do_time() {
   [ "$(date -u +%Y)" -ge 2025 ] && return 0
   t=$(timeout -t 10 cricli get_nitz 2>/dev/null | sed -n 's/^\([0-9]\{4\}-[0-9][0-9]-[0-9][0-9] [0-9:]\{8\}\).*/\1/p' | head -1)
-  [ -n "$t" ] && date -u -s "$t" >/dev/null 2>&1 && log "clock set from network time: $t UTC"
+  if [ -n "$t" ] && date -u -s "$t" >/dev/null 2>&1; then log "clock set from network time: $t UTC"; return 0; fi
+  timeout -t 10 cricli wwan_status 2>/dev/null | grep -q 'IPV4: CONNECTED' || return 0
+  for h in $TIME_NTP; do
+    if timeout -t 15 ntpd -n -q -p "$h" >/dev/null 2>&1 && [ "$(date -u +%Y)" -ge 2025 ]; then
+      log "clock set from NTP ($h): $(date -u '+%F %T') UTC"; return 0
+    fi
+  done
 }
 
 do_qm() {
@@ -373,7 +384,7 @@ case "$1" in
   ui)      do_ui ;;
   qm)      do_time; do_qm ;;
   qmpass)  qm_pass ;;
-  watch)   fw_watch; dns_watch; ts_fw; nb_fw; ssr_watch; ram_logs ;;
+  watch)   do_time; fw_watch; dns_watch; ts_fw; nb_fw; ssr_watch; ram_logs ;;
   dns)     do_dns ;;
   tsfw)    ts_fw ;;
   ssr)     do_ssr ;;
