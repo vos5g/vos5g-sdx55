@@ -54,7 +54,7 @@ ssh -t root@192.168.225.1 /data/vosclean/bin/vosclean qmpass     # QManager pass
 | `UI_ENABLE` | `no` | Minimal fallback UI on `https://192.168.225.1:8444` (`vosclean uipass` first) |
 | `QM_ENABLE` | `yes` | Runs QManager (systemd transient unit `qmanager`, memory capped at 80 MB) |
 | `QM_PORT` / `QM_TLS_PORT` | `8080` / `8443` | QManager ports. The stock UI keeps 80/443 |
-| `QM_WATCHDOG` | `0` | QManager's connectivity watchdog. **Leave it at 0**: on failed pings it toggles the radio and can **reboot the modem** |
+| `QM_WATCHDOG` | `0` | No longer used by current QManager builds: the watchdog is set on its page (Monitoring → Watchdog). See [06-qmanager.md](06-qmanager.md) |
 | `SSR_RELATED` | `yes` | On a baseband crash, restart only the modem (about 30 s without data) instead of resetting the whole device. `no` restores the firmware default |
 | `SSR_RECOVER_SECS` | `180` | After a modem crash, reboot the device anyway if mobile data isn't back within this many seconds |
 | `HEARTBEAT_MINUTES` | `5` | How often the on-flash flight recorder (`log/heartbeat.log`) gets a line |

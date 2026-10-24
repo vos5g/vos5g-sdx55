@@ -39,7 +39,9 @@
 ## What the fork changes in QManager
 
 * **No mock data and no raw serial access on Linux.** Upstream shows fake demo values when it can't reach a modem, and hard-codes several dashboard values (connectivity, LTE category, supported bands). In the fork, the AT client uses `qcmd` only, and those fields show real values or nothing.
-* **The watchdog's recovery actions are off by default.** It still pings, so the latency graphs are real, but radio toggles and reboots only happen with `QM_WATCHDOG=1`.
+* **The connection watchdog recovers on its own** (Monitoring → Watchdog, on by default). It checks the mobile link every few seconds, bypassing any VPN, and after 5 failed checks it restarts the data connection (~6 s), then the radio (~15 s), then the stick (~80 s). It restarts the stick at most once per outage and at most 3 times an hour, and waits 3 minutes after boot. Each step can be switched off on its page. The old watchdog, switched on with `QM_WATCHDOG=1`, caused reboot loops; that variable is no longer used.
+* **Alerts and SMS forwarding send for real.** Alerts go out by SMS (connection lost, restored, stick restarted) and by email (restored, restarted) straight over SMTP; use an app password for Gmail, Outlook or iCloud. Forwarding resends each new text to another number. Use **Send test** on either page to check.
+* **Data usage** on the dashboard counts the modem's own traffic counters, so offloaded traffic is included. It may differ slightly from your carrier's figure.
 * **Self-update is disabled,** because it would replace this build with an upstream one.
 * **Settings live under `/data/vosclean/qm`,** because `/etc` is read-only here.
 * **Parser fixes** for Quectel reply formats: 5G SA and LTE serving cell, `CGCONTRDP` DNS, CA and band lists.
