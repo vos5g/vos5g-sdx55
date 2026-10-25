@@ -24,6 +24,7 @@
 | QManager login refused | Run `vosclean qmpass` again |
 | AT replies scrambled | Two programs are polling the AT channel at once. Don't run the stock UI's status page and QManager side by side for long; the old `UI_ENABLE` UI has its own poller |
 | Custom DNS not applied | `vosclean status` shows the state. Check `etc/dns.conf` and `iptables -t nat -S VOS_DNS` |
+| Ad blocking / encrypted DNS "Not running" | QManager must be running; check `ls -l /tmp/qmanager_dnsproxy.alive` (updated every 20 s) and `netstat -lnu \| grep 5335`. Without them, `vosclean watch` uses the plain servers |
 | Busybox `timeout` errors in your own scripts | Busybox uses `timeout -t SECONDS`, not GNU syntax |
 
 ## Kill switch and uninstall

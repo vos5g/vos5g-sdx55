@@ -9,7 +9,20 @@ Every device on the USB link gets `192.168.225.1` (the modem's dnsmasq) as its D
 * operator server 1 → your server 1, operator server 2 → your server 2, and so on (so dnsmasq's failover still works);
 * a catch-all for any other port-53 traffic leaving on `rmnet+` → your server 1.
 
-Saving the DNS card in QManager writes `/data/vosclean/etc/dns.conf` (`DNS_ENABLE`, `DNS_SERVERS`), then runs `vosclean dns`. The watch loop re-applies the rules within a minute if QCMAP flushes the nat table or the operator hands out new servers. Disabling the feature removes the chain.
+Saving the DNS Servers card in QManager writes `/data/vosclean/etc/dns.conf` (`DNS_ENABLE`, `DNS_SERVERS`, `DNS_PROXY`), then runs `vosclean dns`. The watch loop re-applies the rules within a minute if QCMAP flushes the nat table or the operator hands out new servers. Choosing the carrier's DNS removes the chain.
+
+### Encrypted DNS and ad blocking (`DNS_PROXY=yes`)
+
+With encryption (DoH or DoT) or Ad Blocking on, QManager runs a small DNS proxy on `127.0.0.1:5335`, and `VOS_DNS` **redirects** the same queries there instead of DNATing them:
+
+* port-53 packets carrying firewall mark `0xca6d` (the proxy's own upstream queries) are left alone;
+* the operator servers and any other port-53 traffic leaving on `rmnet+` → `REDIRECT --to-ports 5335`.
+
+The proxy answers blocked names with `0.0.0.0` / `::`, and sends the rest over DoH/DoT, or in plain DNS to the custom servers (or the operator's). Blocklists are downloaded weekly to `/data/vosclean/qm/etc/blocklist.txt` (HaGeZi Normal ≈ 170,000 domains, about 10 MB of RAM).
+
+The redirect is only installed while QManager is alive: the proxy touches `/tmp/qmanager_dnsproxy.alive` every 20 s, and `vosclean watch` falls back to the plain servers (or the operator's DNS) when that file is older than 90 s or nothing listens on the port. QManager also runs `vosclean dns` when it stops. So DNS never stays pointed at a dead proxy for more than about two minutes.
+
+Devices that bring their own DNS (Android Private DNS, iCloud Private Relay, browsers with secure DNS, hard-coded resolvers) don't go through dnsmasq and skip both features.
 
 To check that it works, from the computer:
 

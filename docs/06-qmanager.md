@@ -47,7 +47,8 @@
 * **Parser fixes** for Quectel reply formats: 5G SA and LTE serving cell, `CGCONTRDP` DNS, CA and band lists.
 * **Cellular Information page:** fills in Cell ID, TAC, eNB/sector, NR bandwidth, total bandwidth and carrier details, and IPv4 DNS.
 * **The Cell Scanner endpoint returns the shape the page expects,** including PLMN → operator names.
-* **Custom DNS is applied for real.** Upstream only saved it to a file; the fork calls `vosclean dns` (see 07).
+* **Custom DNS is applied for real.** Upstream only saved it to a file; the fork calls `vosclean dns` (see 07). It can also be encrypted (DNS over HTTPS or TLS), and **Ad Blocking** filters lookups for every device with downloadable blocklists. Both run in QManager's own DNS proxy.
+* **Status Light** (System Settings) turns the stick's LED off, always or at night. It pauses Tri Cascade's `ceiled` LED service while the light is off and restores it afterwards.
 * **Tailscale works for real.** Upstream's VPN → Tailscale endpoint is a stub that does nothing. The fork implements it, and adds two controls to the page: *Accept subnet routes* and *Use exit node*. See 07.
 * **New pages:** NetBird, WireGuard, Kernel Modules, Web Console, System Health Check, bandwidth monitor and a working speed test. See 07.
 * **Pages that do nothing on this modem are hidden** (the list and the reasons are in the fork's `src/constants/vos-features.ts`).
