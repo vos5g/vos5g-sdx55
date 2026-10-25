@@ -372,7 +372,7 @@ status() {
   d=$(ssr_dev); [ -n "$d" ] && echo "modem crash handling: restart_level=$(cat $d/restart_level), crashes this boot: $(cat $d/crash_count)$([ -f $SSR_PENDING ] && echo ', waiting for data to return')"
   type modules_status >/dev/null 2>&1 && modules_status
   wg_status
-  echo "custom DNS: $(iptables -t nat -C OUTPUT -j VOS_DNS 2>/dev/null && echo "on ($(. $VC/etc/dns.conf; echo $DNS_SERVERS))" || echo "off (operator DNS)")"
+  type dns_status >/dev/null 2>&1 && dns_status
 }
 
 [ -f $VC/bin/dns.sh ] && . $VC/bin/dns.sh
