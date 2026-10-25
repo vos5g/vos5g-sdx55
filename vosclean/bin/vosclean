@@ -386,6 +386,13 @@ case "$1" in
   qmpass)  qm_pass ;;
   watch)   do_time; fw_watch; dns_watch; ts_fw; nb_fw; ssr_watch; ram_logs ;;
   dns)     do_dns ;;
+  qm-rollback) # swap QManager with the binary that ran before its last update
+    B=$VC/qm/bin/qmanager-core
+    [ -x $B.prev ] || { echo "no previous QManager binary ($B.prev)"; exit 1; }
+    mv -f $B $B.swap && mv -f $B.prev $B && mv -f $B.swap $B.prev || { echo "swap failed"; exit 1; }
+    rm -f $VC/qm/etc/update_pending $VC/qm/etc/update_state.json
+    systemctl restart qmanager 2>/dev/null || do_qm
+    log "QManager rolled back to the previous binary"; echo "QManager switched to the previous binary (run again to switch back)" ;;
   tsfw)    ts_fw ;;
   ssr)     do_ssr ;;
   modules) do_modules manual; conf_save_good; modules_status ;;
@@ -394,5 +401,5 @@ case "$1" in
   status)  status ;;
   fw)      do_fw ;;
   stop-fw) stop_fw ;;
-  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|tsfw|ssr|modules|modules-list|wg [start|stop]}"; exit 1 ;;
+  *) echo "usage: vosclean {apply|status|qmpass|qm|uipass|ui|fw|stop-fw|watch|dns|qm-rollback|tsfw|ssr|modules|modules-list|wg [start|stop]}"; exit 1 ;;
 esac

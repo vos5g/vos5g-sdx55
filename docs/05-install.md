@@ -69,6 +69,7 @@ vosclean status     # what is active
 vosclean apply      # re-apply everything (idempotent)
 vosclean qmpass     # set the QManager password
 vosclean dns        # re-apply custom DNS from etc/dns.conf (QManager writes this file)
+vosclean qm-rollback # go back to the QManager binary that ran before the last update (and again to switch forward)
 vosclean fw | stop-fw
 uninstall.sh        # remove the hook and undo the live changes (files kept)
 ```
