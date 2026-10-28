@@ -210,3 +210,34 @@ Evidence collected on every boot:
 * `log/qcmd-writes.log` and `log/qm-requests.log`: every write or command, and every UI action.
 
 If you see reboots too, please open an issue with those logs (redact your IMEI and phone number).
+
+## QManager all-band unlock and on-device EFS reader
+
+QManager now implements the dual OEM/live-EFS policy change from
+[vos5g-all-band-unlock](https://github.com/maigougou/vos5g-all-band-unlock).
+The Band Locking page accepts only its audited source hashes, backs up OEM and the full
+PolicyMan tree, preserves the hardware filter, and verifies writes. USB mode is
+separate: System Settings offers the project's **9064 QMI + ECM + MBIM** composition
+as well as 9063 and 9165. Only modes retaining USB networking for SSH are allowed;
+QMI-only 9091 is blocked in both web interfaces and the QManager API. Saving
+changes never reboots automatically.
+
+Build the standalone ARM helper with `tools/build-diag-bridge.sh` (Zig or CC_ARM),
+then upload it with `install.sh --diag-bridge dist/vos5g-diag-bridge-armv7`.
+A GitHub Actions workflow also builds it with its GPL licence and source archive.
+The helper is QCSuper 2.1.3 with the linked project's VOS ARM/Linux patch, plus a
+loopback-only listener and client-count fix; see `tools/diag-bridge/README.md`.
+It remains a separate executable, not linked into QManager.
+
+System Settings → Modem diagnostics reads regular files and EFS item files in
+PolicyMan and the modem NV tree, previews XML/text and downloads binary files.
+It exposes no arbitrary writes and does not change USB mode. Carrier-aggregation
+files can be inspected if present, but QManager does not yet decode proprietary
+CA/EN-DC binary formats into a supported-combination table.
+
+Private, device-bound recovery bundles live under
+`/data/vosclean/qm/band-backups/`; download a copy before uninstalling. At least
+40 MiB free is required. A failed or interrupted operation keeps its bundle and
+blocks a fresh unlock. Do not share these files publicly or restore them to a
+different physical stick. Reboot after a successful policy change, then open the
+Band Locking page to verify OEM and live EFS again. Factory reset may revert the policy.

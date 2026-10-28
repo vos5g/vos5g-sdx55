@@ -93,7 +93,7 @@ POST)
     st=$(getf st); idx=$(getf idx); ok "$st" '0|1' && ok "$idx" '[0-9]{1,3}' || fail 400 "bad sms"
     log "del_sms $st $idx"; $TO cricli del_sms "$st" "$idx" 2>&1 ;;
   usb_mode)
-    m=$(getf m); ok "$m" '9063|9165|9091' || fail 400 "mode not allowed"
+    m=$(getf m); ok "$m" '9063|9064|9165' || fail 400 "mode not allowed"
     log "usb_mode next boot = $m"; echo "$m" > /etc/usb/boot_hsusb_comp && sync && echo "OK: USB composition $m from next reboot" ;;
   at)
     c=$(getf c); ok "$c" '[Aa][Tt][A-Za-z0-9+$^&?=,."_ -]{0,120}' || fail 400 "bad AT command"

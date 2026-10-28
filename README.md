@@ -37,7 +37,7 @@ vosclean/               the on-device payload (copied to /data/vosclean)
   stub/fotaclient         replaces the vendor update client at runtime
   web/                    minimal fallback web UI (disabled by default)
 qcmd/                   Go: Quectel-AT -> Compal (cricli / atcli / QMI) translator
-tools/                  backup-ubi.sh (per-volume backups), build-tailscale-tiny.sh, vos_readonly_probe.sh
+tools/                  backup-ubi.sh, build-tailscale-tiny.sh, build-diag-bridge.sh, vos_readonly_probe.sh
 ```
 
 ## Quick start
@@ -64,6 +64,13 @@ To undo: `ssh root@192.168.225.1 /data/vosclean/bin/uninstall.sh`
 * Prior community work: the [eko.one.pl forum thread on the VOS 5G](https://eko.one.pl/forum/viewtopic.php?id=25031). It covers USB modes, bootloader state, EDL, QCN backup and band policy. Many thanks to its contributors.
 * [QManager](https://github.com/dr-dolomite/QManager) by DrDolomite and the [QManager-GO fork](https://github.com/evairo176/qmanager) by evairo176. QManager-GO is licensed **MIT with Commons Clause**. This repository doesn't include QManager; the [qmanager-vos](https://github.com/vos5g/qmanager-vos) fork does, under the same licence (you may not sell it).
 * [luci-app-5gmodem](https://github.com/fildunsky/luci-app-5gmodem): a router-side LuCI app that already supports this module.
-* Everything else here (vosclean, qcmd, tools, docs) is MIT; see [LICENSE](LICENSE).
+* The separate QCSuper DIAG helper under `tools/diag-bridge` is GPL-3.0-or-later; its licence and provenance are included there.
+* Everything else here (vosclean, qcmd, other tools, docs) is MIT; see [LICENSE](LICENSE).
 
 This project isn't affiliated with Tri Cascade, Compal, Qualcomm or any carrier. Modifying your device is at your own risk.
+
+Optional ARM DIAG helper: build `tools/build-diag-bridge.sh`, then pass
+`--diag-bridge dist/vos5g-diag-bridge-armv7` to `install.sh`. It enables QManager’s
+Cellular → Band Locking all-band unlock and read-only modem EFS browser, without a USB-mode
+switch. QManager also offers 9064 (QMI + ECM + MBIM) in System Settings. See
+[the feature guide](docs/07-features-and-limits.md#qmanager-all-band-unlock-and-on-device-efs-reader).

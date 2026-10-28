@@ -16,6 +16,8 @@
 #   --qcmd FILE      qcmd ARMv7 binary (see qcmd/build.sh)
 #   --tailscale-tiny FILE  Tailscale Tiny binary (see tools/build-tailscale-tiny.sh);
 #                    then install it from QManager -> VPN -> Tailscale -> Tiny
+#   --diag-bridge FILE  ARMv7 Qualcomm DIAG helper (tools/build-diag-bridge.sh); enables
+#                    QManager all-band unlock and read-only modem EFS diagnostics
 #   --modules DIR    extra kernel modules built by github.com/vos5g/vos5g-kmod
 #                    (e.g. ../vos5g-kmod/dist/modules-4.14.117-perf); switch groups on in
 #                    QManager -> System Settings -> Kernel Modules (or MODULES= + vosclean modules)
@@ -25,7 +27,7 @@
 set -euo pipefail
 
 HOST=192.168.225.1
-PUBKEY="" QM="" QCMD="" TSTINY="" MODS="" CHECK_ONLY=0
+PUBKEY="" QM="" QCMD="" TSTINY="" MODS="" DIAGBRIDGE="" CHECK_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) HOST=$2; shift 2 ;;
@@ -33,6 +35,7 @@ while [ $# -gt 0 ]; do
     --qmanager) QM=$2; shift 2 ;;
     --qcmd) QCMD=$2; shift 2 ;;
     --tailscale-tiny) TSTINY=$2; shift 2 ;;
+    --diag-bridge) DIAGBRIDGE=$2; shift 2 ;;
     --modules) MODS=$2; shift 2 ;;
     --check) CHECK_ONLY=1; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
@@ -51,6 +54,13 @@ if [ -n "$QM$QCMD" ]; then
   [ -s "$QM" ] && [ -s "$QCMD" ] || die "binary not found"
 fi
 
+[ -z "$DIAGBRIDGE" ] || [ -s "$DIAGBRIDGE" ] || die "DIAG helper $DIAGBRIDGE not found"
+if [ -n "$DIAGBRIDGE" ]; then
+  # Fail before uploading a host or AArch64 executable.
+  magic=$(od -An -tx1 -N6 "$DIAGBRIDGE" | tr -d ' \n')
+  machine=$(od -An -tx1 -j18 -N2 "$DIAGBRIDGE" | tr -d ' \n')
+  [ "$magic" = 7f454c460101 ] && [ "$machine" = 2800 ] || die "DIAG helper must be a little-endian ARM32 ELF executable"
+fi
 [ -z "$TSTINY" ] || [ -s "$TSTINY" ] || die "Tailscale Tiny binary $TSTINY not found"
 [ -z "$MODS" ] || [ -s "$MODS/SHA256SUMS" ] || die "module directory $MODS has no SHA256SUMS (build it with vos5g-kmod/build.sh)"
 
@@ -100,6 +110,12 @@ if [ -n "$QM" ]; then
     "${SSH[@]}" "B=/data/vosclean/qm/bin; cat > \$B/$name.new && [ \"\$(sha256sum \$B/$name.new | cut -d' ' -f1)\" = $want ] && chmod 755 \$B/$name.new && mv \$B/$name.new \$B/$name && echo '  $name ${want:0:8} OK' || { rm -f \$B/$name.new; echo '  $name: checksum mismatch, not installed'; exit 1; }" < "$file"
   done
   "${SSH[@]}" 'systemctl stop qmanager 2>/dev/null; true'
+fi
+
+if [ -n "$DIAGBRIDGE" ]; then
+  echo "== Uploading ARMv7 DIAG helper (GPL-3.0-or-later; local access only)"
+  want=$(sha "$DIAGBRIDGE")
+  "${SSH[@]}" "B=/data/vosclean/qm/bin; mkdir -p \$B; cat > \$B/vos5g-diag-bridge.new && [ \"\$(sha256sum \$B/vos5g-diag-bridge.new | cut -d' ' -f1)\" = $want ] && chmod 700 \$B/vos5g-diag-bridge.new && mv \$B/vos5g-diag-bridge.new \$B/vos5g-diag-bridge || { rm -f \$B/vos5g-diag-bridge.new; echo 'DIAG checksum mismatch'; exit 1; }" < "$DIAGBRIDGE"
 fi
 
 if [ -n "$TSTINY" ]; then

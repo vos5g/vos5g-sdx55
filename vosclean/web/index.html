@@ -74,8 +74,8 @@ pre{font-family:var(--mono);font-size:12px;white-space:pre-wrap;background:var(-
  <div class="card" style="margin-top:14px"><h3>APN profile 1</h3><div id="n_prof" class="sub"></div>
   <div class="row"><input id="a_apn" placeholder="APN" size="22"><select id="a_pdp"><option value="3">IPv4v6</option><option value="0">IPv4</option><option value="2">IPv6</option></select><select id="a_auth"><option value="0">No auth</option><option value="1">PAP</option><option value="2">CHAP</option><option value="3">PAP/CHAP</option></select><input id="a_user" placeholder="user (optional)" size="12"><input id="a_pw" placeholder="password (optional)" size="12" type="password"><button class="act" onclick="setApn()">Save</button></div></div>
  <div class="card" style="margin-top:14px"><h3>USB mode (next boot)</h3><div class="sub" id="n_usb"></div>
-  <div class="row"><select id="u_mode"><option value="9063">9063: ECM / RNDIS / MBIM (default)</option><option value="9165">9165: ECM + DIAG + ADB + AT port</option><option value="9091">9091: QMI + DIAG + ADB + AT (for some routers)</option></select><button class="act" onclick="usbMode()">Set</button></div>
-  <div class="note">Takes effect after a reboot. 9091 is QMI-only: this page won't be reachable over USB in that mode. Switch back with SSH or a router.</div></div>
+  <div class="row"><select id="u_mode"><option value="9063">9063: ECM / RNDIS / MBIM (default)</option><option value="9165">9165: ECM + DIAG + ADB + AT port</option><option value="9064">9064: QMI + ECM + MBIM</option></select><button class="act" onclick="usbMode()">Set</button></div>
+  <div class="note">Takes effect after a reboot. Only modes retaining USB networking for SSH are available.</div></div>
  <div class="card" style="margin-top:14px"><h3>Connected devices</h3><pre id="n_clients"></pre></div>
 </section>
 <section id="sys" class="hide">

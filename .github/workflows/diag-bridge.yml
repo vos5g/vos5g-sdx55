@@ -1,0 +1,30 @@
+name: ARMv7 DIAG helper
+on:
+  workflow_dispatch:
+  push:
+    paths: ['tools/diag-bridge/**', 'tools/build-diag-bridge.sh', '.github/workflows/diag-bridge.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install ARM compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf
+      - name: Build static ARMv7 helper
+        # Stock VOS glibc supports a static binary built with the GNU toolchain too.
+        env:
+          CC_ARM: arm-linux-gnueabihf-gcc
+        run: |
+          tools/build-diag-bridge.sh
+          cp tools/diag-bridge/LICENSE dist/DIAG-LICENSE
+          tar -czf dist/diag-bridge-source.tar.gz tools/diag-bridge tools/build-diag-bridge.sh
+          cd dist
+          sha256sum vos5g-diag-bridge-armv7 DIAG-LICENSE diag-bridge-source.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v6
+        with:
+          name: vos5g-diag-bridge-armv7
+          path: dist/

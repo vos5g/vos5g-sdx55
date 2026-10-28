@@ -54,6 +54,7 @@ The USB composition is chosen at boot from `/etc/usb/boot_hsusb_comp`. Query it 
 | PID (VID 05c6) | Mode | Notes |
 |---|---|---|
 | **9063** | "user" | **Factory default.** ECM network to the host, data path offloaded in hardware (IPA) |
+| **9064** | QMI + DIAG + ADB + AT, plus ECM and MBIM configurations | QMI for Linux/OpenWrt, ECM for macOS, MBIM for Windows; host selects configuration |
 | 9165 | ECM + DIAG + ADB + AT serial | Best for development. Internet still works |
 | 9091 | QMI (rmnet) | Used by ModemManager / luci-app-5gmodem. Reported unstable with multiplexing on |
 | 905B | MBIM only | Getting out of it needs Windows: `ATcommandCLI.exe "at+usbcomp=rndis"` from Switch_Tool |
