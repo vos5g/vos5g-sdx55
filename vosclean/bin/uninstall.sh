@@ -3,7 +3,9 @@
 VC=/data/vosclean
 rm -f $VC/ENABLED
 sed -i '/vosclean/d' /oem/script/oem_init_post.sh
-systemctl stop vosclean-boot vosclean-diag vosclean-ui vos-wg qmanager tailscaled 2>/dev/null
+systemctl stop vosclean-boot vosclean-diag vosclean-ui vos-wg vos-hostmodem qmanager tailscaled 2>/dev/null
+# router modem mode: give the stick its own data connection back
+[ -f $VC/state/hostmodem-released ] && { cricli set_auto_connect_state 1; cricli backhaul_connect 1; rm -f $VC/state/hostmodem-released; } >/dev/null 2>&1
 rm -f $VC/DIAG
 for d in /sys/bus/msm_subsys/devices/*; do echo SYSTEM > $d/restart_level 2>/dev/null; done
 $VC/bin/vosclean stop-fw

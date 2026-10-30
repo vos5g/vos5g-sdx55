@@ -59,6 +59,7 @@ ssh -t root@192.168.225.1 /data/vosclean/bin/vosclean qmpass     # QManager pass
 | `SSR_RECOVER_SECS` | `180` | After a modem crash, reboot the device anyway if mobile data isn't back within this many seconds |
 | `HEARTBEAT_MINUTES` | `5` | How often the on-flash flight recorder (`log/heartbeat.log`) gets a line |
 | `MODULES` | (empty) | Extra kernel module groups to load (`wireguard ipv6nat bbr fqcodel xtmatch`); see [features](07-features-and-limits.md#extra-kernel-modules). Build with [vos5g-kmod](https://github.com/vos5g/vos5g-kmod), upload with `install.sh --modules`; QManager → Kernel Modules edits this line |
+| `HOST_MODEM` | `auto` (new installs), `off` when missing | Router modem mode: when a USB host uses the stick as its QMI/MBIM modem, release the stick's own data connection so the host can connect on the same APN. See [router use](09-router-use.md#router-modem-mode-qmi-on-openwrt). `vosclean hostmodem on\|off` or QManager → System Settings → USB mode edits this line |
 
 After editing, run `/data/vosclean/bin/vosclean apply`.
 
@@ -69,6 +70,7 @@ vosclean status     # what is active
 vosclean apply      # re-apply everything (idempotent)
 vosclean qmpass     # set the QManager password
 vosclean dns        # re-apply custom DNS from etc/dns.conf (QManager writes this file)
+vosclean hostmodem [on|off] # router modem mode: show its state, or switch it
 vosclean qm-rollback # go back to the QManager binary that ran before the last update (and again to switch forward)
 vosclean fw | stop-fw
 uninstall.sh        # remove the hook and undo the live changes (files kept)
