@@ -1,12 +1,13 @@
 #!/bin/sh
 # Separate GPL-3.0-or-later QCSuper helper. Requires Zig (or an ARM musl CC).
+# _GNU_SOURCE: glibc (the CI's arm-linux-gnueabihf-gcc) only defines O_LARGEFILE with it; musl always does.
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$ROOT/dist"
 if [ -n "${CC_ARM:-}" ]; then
-  "$CC_ARM" -O2 -static -s -pthread '-D__packed=__attribute__((packed))' \
+  "$CC_ARM" -O2 -static -s -pthread -D_GNU_SOURCE '-D__packed=__attribute__((packed))' \
     -Wno-int-conversion "$ROOT/tools/diag-bridge/adb_bridge.c" -ldl -o "$ROOT/dist/vos5g-diag-bridge-armv7"
 else
-  zig cc -target arm-linux-musleabihf -O2 -static -s -pthread '-D__packed=__attribute__((packed))' \
+  zig cc -target arm-linux-musleabihf -O2 -static -s -pthread -D_GNU_SOURCE '-D__packed=__attribute__((packed))' \
     -Wno-int-conversion "$ROOT/tools/diag-bridge/adb_bridge.c" -ldl -o "$ROOT/dist/vos5g-diag-bridge-armv7"
 fi
